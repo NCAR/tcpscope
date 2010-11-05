@@ -3,11 +3,12 @@
 
 #include "AScope.h"
 #include <string>
+#include <QObject>
 
 /// A Time series reader for the AScope. It reads IWRF data and translates
 /// DDS samples to AScope::TimeSeries.
 
-class AScopeReader
+class AScopeReader : QObject
 {
 
   Q_OBJECT
