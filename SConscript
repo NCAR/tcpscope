@@ -12,11 +12,11 @@ env = Environment(tools = ['default'] + tools)
 
 sources = Split("""
 main.cpp
-AScopeReader.cpp
+#AScopeReader.cpp
 """)
 
 headers = Split("""
-AScopeReader.h
+#AScopeReader.h
 """)
 
 html = env.Apidocs(sources + headers, DOXYFILE_FILE = "Doxyfile")

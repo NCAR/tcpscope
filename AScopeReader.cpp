@@ -1,36 +1,37 @@
-
 #include "AScopeReader.h"
 #include <QMetaType>
 
 Q_DECLARE_METATYPE(AScope::TimeSeries)
-
+  
 // Note that the timer interval for QtTSReader is 0; we
 // are accepting all DDS samples.
-AScopeReader::AScopeReader(DDSSubscriber& subscriber,
-		std::string topicName):
-		QtKaTSReader(subscriber, topicName, 0)
+  AScopeReader::AScopeReader(const std::string &host,
+                             int port):
+          _serverHost(host),
+          _serverPort(port)
 {
-	// this are required in order to send structured data types
-	// via a qt signal
-	qRegisterMetaType<AScope::TimeSeries>();
+  // this are required in order to send structured data types
+  // via a qt signal
+  qRegisterMetaType<AScope::TimeSeries>();
 }
 
 AScopeReader::~AScopeReader() {
-
+  
 }
 
 //////////////////////////////////////////////////////////////////////////////
 void
-AScopeReader::returnItemSlot(AScope::TimeSeries pItem) {
-	
-	RadarDDS::KaTimeSeriesSequence* ddsItem
-		= static_cast<RadarDDS::KaTimeSeriesSequence*>(pItem.handle);
+  AScopeReader::returnItemSlot(AScope::TimeSeries pItem) {
+  
+  RadarDDS::KaTimeSeriesSequence* ddsItem
+    = static_cast<RadarDDS::KaTimeSeriesSequence*>(pItem.handle);
+  
+  // It had better be a RadarDDS::TimeSeriesSequence*
+  assert(ddsItem);
+  
+  // return the DDS sample
+  KaTSReader::returnItem(ddsItem);
 
-	// It had better be a RadarDDS::TimeSeriesSequence*
-	assert(ddsItem);
-	
-	// return the DDS sample
-	KaTSReader::returnItem(ddsItem);
 }
 
 ////////////////////////////////////////////////////////////////////////
