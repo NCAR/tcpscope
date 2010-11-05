@@ -22,6 +22,7 @@ std::string _serverHost; ///< The host name for the time series server
 int _serverPort;         ///< The port for the time series server
 int _debugLevel;
 std::string _saveDir;            ///< The image save directory
+std::string _title;
 
 namespace po = boost::program_options;
 
@@ -116,19 +117,22 @@ int
   QApplication app(argc, argv);
 
   // create the data source reader
-  AScopeReader reader(subscriber, _tsTopic);
+  AScopeReader reader(_serverHost, _serverPort);
 
   // create the scope
   AScope scope(_refreshHz, _saveDir);
   scope.setWindowTitle(QString(_title.c_str()));
   scope.show();
 
-  // connect the reader to the scope to receive new DDS data
-  scope.connect(&reader, SIGNAL(newItem(AScope::TimeSeries)),
-                &scope, SLOT(newTSItemSlot(AScope::TimeSeries)));
-  // connect the scope to the reader to return used DDS data
-  scope.connect(&scope, SIGNAL(returnTSItem(AScope::TimeSeries)),
-                &reader, SLOT(returnItemSlot(AScope::TimeSeries)));
+  // connect the reader to the scope to receive new time series data
+  
+//   scope.connect(&reader, SIGNAL(newItem(AScope::TimeSeries)),
+//                 &scope, SLOT(newTSItemSlot(AScope::TimeSeries)));
+  
+  // connect the scope to the reader to return used time series data
+
+  // scope.connect(&scope, SIGNAL(returnTSItem(AScope::TimeSeries)),
+  //               &reader, SLOT(returnItemSlot(AScope::TimeSeries)));
 
   return app.exec();
 }
