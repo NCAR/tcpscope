@@ -13,7 +13,6 @@
 #include <iostream>
 #include <boost/program_options.hpp>
 #include "QtConfig.h"
-
 #include "AScopeReader.h"
 #include "AScope.h"
 
@@ -77,13 +76,20 @@ void parseOptions(int argc,
     ;
 
   po::variables_map vm;
-  po::store(po::parse_command_line(argc, argv, descripts), vm);
-  po::notify(vm);
-
-  if (vm.count("help")) {
-    std::cout << descripts << std::endl;
+  try {
+    po::store(po::parse_command_line(argc, argv, descripts), vm);
+  }
+  catch(std::exception ex) {
+    std::cerr << "ERROR parsing command line" << std::endl;
+    std::cerr << descripts << std::endl;
     exit(1);
   }
+  po::notify(vm);
+
+//   if (vm.count("help")) {
+//     std::cout << descripts << std::endl;
+//     exit(1);
+//   }
 }
 
 
@@ -97,42 +103,27 @@ int
   // parse the command line optins, substituting for config params.
   parseOptions(argc, argv);
 
-  // 	ArgvParams newargv("kascope");
-  // 	newargv["-ORBSvcConf"] = _ORB;
-  // 	newargv["-DCPSConfigFile"] = _DCPS;
-  // 	newargv["-DCPSInfoRepo"] = _DCPSInfoRepo;
-  // 	if (_DCPSDebugLevel > 0)
-  // 		newargv["-DCPSDebugLevel"] = _DCPSDebugLevel;
-  // 	if (_DCPSTransportDebugLevel > 0)
-  // 		newargv["-DCPSTransportDebugLevel"] = _DCPSTransportDebugLevel;
-
-  // create our DDS subscriber
-  // 	char **theArgv = newargv.argv();
-  // 	DDSSubscriber subscriber(newargv.argc(), theArgv);
-  // 	if (subscriber.status()) {
-  // 		std::cerr << "Unable to create a subscriber, exiting." << std::endl;
-  // 		exit(1);
-  // 	}
-
   QApplication app(argc, argv);
 
   // create the data source reader
+
   AScopeReader reader(_serverHost, _serverPort);
 
   // create the scope
+
   AScope scope(_refreshHz, _saveDir);
   scope.setWindowTitle(QString(_title.c_str()));
   scope.show();
 
   // connect the reader to the scope to receive new time series data
   
-//   scope.connect(&reader, SIGNAL(newItem(AScope::TimeSeries)),
-//                 &scope, SLOT(newTSItemSlot(AScope::TimeSeries)));
+  scope.connect(&reader, SIGNAL(newItem(AScope::TimeSeries)),
+                &scope, SLOT(newTSItemSlot(AScope::TimeSeries)));
   
   // connect the scope to the reader to return used time series data
 
-  // scope.connect(&scope, SIGNAL(returnTSItem(AScope::TimeSeries)),
-  //               &reader, SLOT(returnItemSlot(AScope::TimeSeries)));
+  scope.connect(&scope, SIGNAL(returnTSItem(AScope::TimeSeries)),
+                &reader, SLOT(returnItemSlot(AScope::TimeSeries)));
 
   return app.exec();
 }
