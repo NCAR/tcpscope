@@ -15,6 +15,7 @@
 #include "QtConfig.h"
 #include "AScopeReader.h"
 #include "AScope.h"
+#include <radar/iwrf_data.h>
 
 double _refreshHz;       ///< The scope refresh rate in Hz
 std::string _serverHost; ///< The host name for the time series server
@@ -86,22 +87,28 @@ void parseOptions(int argc,
   }
   po::notify(vm);
 
-//   if (vm.count("help")) {
-//     std::cout << descripts << std::endl;
-//     exit(1);
-//   }
+  if (vm.count("help")) {
+    std::cout << descripts << std::endl;
+    exit(1);
+  }
+
 }
 
 
 int
   main (int argc, char** argv) {
 
-
   // get the configuration parameters from the configuration file
   getConfigParams();
 
   // parse the command line optins, substituting for config params.
   parseOptions(argc, argv);
+
+  if (_debugLevel) {
+    std::cerr << "Running tcpscope" << std::endl;
+    std::cerr << "  server host: " << _serverHost << std::endl;
+    std::cerr << "  server port: " << _serverPort << std::endl;
+  }
 
   QApplication app(argc, argv);
 

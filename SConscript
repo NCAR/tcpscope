@@ -6,6 +6,7 @@ ascope
 qtt_qtconfig
 doxygen
 boost_program_options
+rapradar
 """)
 
 env = Environment(tools = ['default'] + tools)
