@@ -112,16 +112,16 @@ int
 
   QApplication app(argc, argv);
 
-  // create the data source reader
-
-  AScopeReader reader(_serverHost, _serverPort);
-
   // create the scope
 
   AScope scope(_refreshHz, _saveDir);
   scope.setWindowTitle(QString(_title.c_str()));
   scope.show();
 
+  // create the data source reader
+  
+  AScopeReader reader(_serverHost, _serverPort, scope);
+  
   // connect the reader to the scope to receive new time series data
   
   scope.connect(&reader, SIGNAL(newItem(AScope::TimeSeries)),

@@ -4,6 +4,7 @@
 #include "AScope.h"
 #include <string>
 #include <QObject>
+#include <toolsa/Socket.hh>
 
 /// A Time series reader for the AScope. It reads IWRF data and translates
 /// DDS samples to AScope::TimeSeries.
@@ -18,7 +19,7 @@ public:
   /// Constructor
   /// @param host The server host
   /// @param port The server port
-  AScopeReader(const std::string &host, int port);
+    AScopeReader(const std::string &host, int port, AScope &scope);
 
   /// Destructor
   virtual ~AScopeReader();
@@ -43,12 +44,19 @@ public slots:
 
   void readFromServer();
 
+  // respond to timer events
+  
+  void timerEvent(QTimerEvent *event);
+    
 protected:
 
 private:
 
   std::string _serverHost;
   int _serverPort;
+  AScope &_scope;
+  Socket _sock;
+  int _sockTimerId;
 
 };
 
