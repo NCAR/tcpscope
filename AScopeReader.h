@@ -77,25 +77,18 @@ private:
   int _pulseCount;
   int _pulseCountSinceSync;
   
-  // radar info etc from time series
-  
-//   iwrf_radar_info _tsRadarInfo;
-//   iwrf_scan_segment _tsScanSegment;
-//   iwrf_ts_processing _tsTsProcessing;
-
   // info and pulses
 
   IwrfTsInfo _info;
   vector<IwrfTsPulse *> _pulses;
-
-  static const size_t _nSamples = 64;
 
   // methods
   
   int _readFromServer();
   int _readPacket(int &id, int &len, MemBuf &buf);
   int _peekAtBuffer(void *buf, int nbytes);
-  void _handlePulse(const MemBuf &buf);
+  void _addPulse(const MemBuf &buf);
+  void _sendDataToAScope();
 
 
 };

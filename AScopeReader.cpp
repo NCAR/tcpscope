@@ -76,79 +76,60 @@ void AScopeReader::timerEvent(QTimerEvent *event)
       }
     }
 
-    // read data from server
+    // read data from server, until enough data is gathered
 
-    if (_readFromServer()) {
+    if (_readFromServer() == 0) {
+      _sendDataToAScope();
     }
-
+    
   } // if (event->timerId() == _sockTimerId)
     
 }
 
 /////////////////////////////
 // read data from the server
+// returns 0 on succes, -1 on failure (not enough data)
 
 int AScopeReader::_readFromServer()
 
 {
 
-  // read data
+  // read data until nSamples pulses have been gathered
   
+  size_t nSamples = _scope.getBlockSize();
+  if (nSamples < 16) nSamples = 16;
+
   MemBuf buf;
-  while (true) {
+  while (_pulses.size() < nSamples) {
     
     // read packet from time series server server
-
+    
     int packetId, packetLen;
     if (_readPacket(packetId, packetLen, buf)) {
       cerr << "ERROR - AScopeReader::_readFromServer" << endl;
       return -1;
     }
     if (_timedOut) {
-      return 0;
+      return -1;
     }
     
     // handle packet types
 
     if (packetId == IWRF_PULSE_HEADER_ID) {
+    
+      // add pulse to vector
 
-      _handlePulse(buf);
+      _addPulse(buf);
 
     } else {
+
+      // set the ops info appropriately
 
       _info.setFromBuffer(buf.getPtr(), buf.getLen());
 
     }
 
-#ifdef JUNK
-      
-    } else if (packetId == IWRF_RADAR_INFO_ID) {
-      
-      // radar info - make local copy
-      
-      iwrf_radar_info_t *radar = (iwrf_radar_info_t *) buf.getPtr();
-      _tsRadarInfo = *radar;
-      
-    } else if (packetId == IWRF_SCAN_SEGMENT_ID) {
-
-      // scan segment - make local copy
-
-      iwrf_scan_segment_t *scan = (iwrf_scan_segment_t *) buf.getPtr();
-      _tsScanSegment = *scan;
-
-    } else if (packetId == IWRF_TS_PROCESSING_ID) {
-      
-      // ts processing - make local copy
-
-      iwrf_ts_processing_t *proc = (iwrf_ts_processing_t *) buf.getPtr();
-      _tsTsProcessing = *proc;
-      
-    }
-
-#endif
-
-
-  } // while (true)
+  } // while 
 
   return 0;
 
@@ -289,111 +270,113 @@ int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
 }
 
 ///////////////////////////////////////////////////////
-// handle pulse packet
+// add pulse to queue
 
-void AScopeReader::_handlePulse(const MemBuf &buf)
+void AScopeReader::_addPulse(const MemBuf &buf)
 
 {
   
   // create a new pulse
-
+  
   IwrfTsPulse *pulse = new IwrfTsPulse(_info);
-
+  
   // set the data on the pulse, as floats
 
   pulse->setFromBuffer(buf.getPtr(), buf.getLen(), true);
 
   // add to the pulse vector
-
+  
   _pulses.push_back(pulse);
 
-  // if we have enough samples, send the data to
-  // the scope
+}
+      
+///////////////////////////////////////////////////////
+// send data to the AScope
 
-  if (_pulses.size() == _nSamples) {
+void AScopeReader::_sendDataToAScope()
+
+{
+  
+  // compute max gates and channels
+  
+  int nGates = 0;
+  int nChannels = 0;
+  
+  for (size_t ii = 0; ii < _pulses.size(); ii++) {
+    const IwrfTsPulse *pulse = _pulses[ii];
+    int nGatesPulse = pulse->getNGates();
+    if (nGatesPulse > nGates) {
+      nGates = nGatesPulse;
+    }
+    int nChannelsPulse = pulse->getNChannels();
+    if (nChannelsPulse > nChannels) {
+      nChannels = nChannelsPulse;
+    }
+  } // ii
+  
+  // create channel 0 time series objects for AScope
+  
+  AScope::FloatTimeSeries tsChan0;
+  tsChan0.gates = nGates;
+  tsChan0.chanId = 0;
+  tsChan0.sampleRateHz = 1.0 / _pulses[0]->get_prt();
+  tsChan0.handle = (void*) this;
+  
+  for (size_t ii = 0; ii < _pulses.size(); ii++) {
     
-    // compute max gates and channels
+    const IwrfTsPulse *pulse = _pulses[ii];
+    int nGatesPulse = _pulses[ii]->getNGates();
     
-    int nGates = 0;
-    int nChannels = 0;
+    fl32 *iq = new fl32[nGates * 2];
+    memset(iq, 0, nGates * 2 * sizeof(fl32));
+    memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
+    
+    tsChan0.IQbeams.push_back(iq);
+    
+    // send the time series to the display
+    
+    emit newItem(tsChan0);
+    
+  } // ii
+  
+  if (nChannels > 1) {
+    
+    // create channel 1 time series objects for AScope
+    
+    AScope::FloatTimeSeries tsChan1;
+    tsChan1.gates = nGates;
+    tsChan1.chanId = 1;
+    tsChan1.sampleRateHz = 1.0 / _pulses[0]->get_prt();
+    tsChan1.handle = (void*) this;
     
     for (size_t ii = 0; ii < _pulses.size(); ii++) {
-      const IwrfTsPulse *pulse = _pulses[ii];
-      int nGatesPulse = pulse->getNGates();
-      if (nGatesPulse > nGates) {
-        nGates = nGatesPulse;
-      }
-      int nChannelsPulse = pulse->getNChannels();
-      if (nChannelsPulse > nChannels) {
-        nChannels = nChannelsPulse;
-      }
-    } // ii
-
-    // create channel 0 time series objects for AScope
-
-    AScope::FloatTimeSeries tsChan0;
-    tsChan0.gates = nGates;
-    tsChan0.chanId = 0;
-    tsChan0.sampleRateHz = 1.0 / _pulses[0]->get_prt();
-    tsChan0.handle = (void*) this;
-    
-    for (size_t ii = 0; ii < _pulses.size(); ii++) {
-
+      
       const IwrfTsPulse *pulse = _pulses[ii];
       int nGatesPulse = _pulses[ii]->getNGates();
       
       fl32 *iq = new fl32[nGates * 2];
       memset(iq, 0, nGates * 2 * sizeof(fl32));
-      memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
-
-      tsChan0.IQbeams.push_back(iq);
-
-      // send the time series to the display
-
-      emit newItem(tsChan0);
-
-    } // ii
-
-    if (nChannels > 1) {
-
-      // create channel 1 time series objects for AScope
-
-      AScope::FloatTimeSeries tsChan1;
-      tsChan1.gates = nGates;
-      tsChan1.chanId = 1;
-      tsChan1.sampleRateHz = 1.0 / _pulses[0]->get_prt();
-      tsChan1.handle = (void*) this;
       
-      for (size_t ii = 0; ii < _pulses.size(); ii++) {
-        
-        const IwrfTsPulse *pulse = _pulses[ii];
-        int nGatesPulse = _pulses[ii]->getNGates();
-        
-        fl32 *iq = new fl32[nGates * 2];
-        memset(iq, 0, nGates * 2 * sizeof(fl32));
-
-        if (pulse->getIq1() != NULL) {
-          memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
-        }
-        
-        tsChan1.IQbeams.push_back(iq);
-        
-      } // ii
-
+      if (pulse->getIq1() != NULL) {
+        memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
+      }
+      
+      tsChan1.IQbeams.push_back(iq);
+      
+    } // ii
+    
       // send the time series to the display
-
-      emit newItem(tsChan1);
-
-    } // if (nChannels > 1)
-
-    // free up the pulses
-
-    for (size_t ii = 0; ii < _pulses.size(); ii++) {
-      delete _pulses[ii];
-    }
-    _pulses.clear();
-
-  } // if (_pulses.size() == _nSamples)
+    
+    emit newItem(tsChan1);
+    
+  } // if (nChannels > 1)
+  
+  // free up the pulses
+  
+  for (size_t ii = 0; ii < _pulses.size(); ii++) {
+    delete _pulses[ii];
+  }
+  _pulses.clear();
 
 }
 
@@ -405,9 +388,9 @@ void AScopeReader::returnItemSlot(AScope::TimeSeries ts)
 
 {
   
-  for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
-    delete[] (fl32 *) ts.IQbeams[ii];
-  }
+//   for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
+//     delete[] (fl32 *) ts.IQbeams[ii];
+//   }
   
 }
 
