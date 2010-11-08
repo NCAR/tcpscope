@@ -12,9 +12,10 @@ Q_DECLARE_METATYPE(AScope::TimeSeries)
                              int port,
                              AScope &scope,
                              int debugLevel):
-          _serverHost(host),
+         _serverHost(host),
           _serverPort(port),
           _scope(scope),
+          _lastTryConnectTime(0),
           _debugLevel(debugLevel),
           _pulseCount(0)
 {
@@ -87,6 +88,12 @@ void AScopeReader::timerEvent(QTimerEvent *event)
     cerr << "Servicing socket timer event" << endl;
 
     if (!_sock.isOpen()) {
+      // try opening, once per second
+      time_t now = time(NULL);
+      if (now == _lastTryConnectTime) {
+        return;
+      }
+      _lastTryConnectTime = now;
       if (_sock.open(_serverHost.c_str(), _serverPort)) {
         int errNum = errno;
         cerr << "ERROR AScopeReader::timerEvent" << endl;
@@ -248,7 +255,7 @@ int AScopeReader::_readFromServer()
 int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
 
 {
-  int have_good_header = 0;
+  bool haveGoodHeader = false;
   si32 packetId;
   si32 packetLen;
   si32 packetTop[2];
@@ -262,7 +269,6 @@ int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
       return -1;
     }
     if (_timedOut) {
-      cerr << "11111111 _readTcpPacket timed out" << endl;
       return 0;
     }
     
@@ -270,19 +276,12 @@ int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
     packetId = packetTop[0];
     packetLen = packetTop[1];
 
-    cerr << "3333333333 packetId, packetLen: " << packetId << ", " << packetLen << endl;
-
-    fprintf(stderr, "4444444 id, len: %x, %d\n", packetId, packetLen);
-    
     if (iwrf_check_packet_id(packetId, packetLen)) {
       // out of order, so close and return error
       cerr << "ERROR - AScopeReader::_readPacket" << endl;
       cerr << " Incoming data stream out of sync" << endl;
       cerr << " Closing socket" << endl;
       _sock.close();
-      if (_sock.isOpen()) {
-        cerr << "2222222222 - error, did not close" << endl;
-      }
       return -1;
       // read bytes to re-synchronize data stream
       // if (_reSync(sock)) {
@@ -292,16 +291,16 @@ int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
       //  return -1;
       // }
     } else {
-      have_good_header = 1;
+      haveGoodHeader = true;
       id = packetId;
       len = packetLen;
     }
-  } while (have_good_header == 0);
+  } while (!haveGoodHeader);
     
   // read it in
   buf.reserve(packetLen);
 
-  if (_sock.readBuffer(buf.getPtr(), packetLen, _msecsRead)) {
+  if (_sock.readBuffer(buf.getPtr(), packetLen)) {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
       _timedOut = true;
       return 0;
@@ -356,7 +355,7 @@ int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
 
   _timedOut = false;
 
-  if (_sock.peek(buf, nbytes, _msecsRead) == 0) {
+  if (_sock.peek(buf, nbytes, 0) == 0) {
     return 0;
   } else {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {

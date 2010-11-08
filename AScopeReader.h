@@ -59,11 +59,11 @@ private:
   int _serverPort;
   AScope &_scope;
   Socket _sock;
+  time_t _lastTryConnectTime;
   int _sockTimerId;
   int _debugLevel;
   int _pulseCount;
   bool _timedOut;
-  static const int _msecsRead = 20;
 
   // radar info etc from time series
   
