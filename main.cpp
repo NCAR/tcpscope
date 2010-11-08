@@ -17,12 +17,14 @@
 #include "AScope.h"
 #include <radar/iwrf_data.h>
 
+using namespace std;
+
 double _refreshHz;       ///< The scope refresh rate in Hz
-std::string _serverHost; ///< The host name for the time series server
+string _serverHost; ///< The host name for the time series server
 int _serverPort;         ///< The port for the time series server
 int _debugLevel;
-std::string _saveDir;            ///< The image save directory
-std::string _title;
+string _saveDir;            ///< The image save directory
+string _title;
 
 namespace po = boost::program_options;
 
@@ -39,12 +41,12 @@ void getConfigParams()
   _title = config.getString("Title", "KAScope");
   
   // set up the default configuration directory path
-  std::string KaDir("/conf/");
+  string KaDir("/conf/");
   char* e = getenv("KADIR");
   if (e) {
     KaDir = e + KaDir;
   } else {
-    std::cerr << "Environment variable KADIR must be set." << std::endl;
+    cerr << "Environment variable KADIR must be set." << endl;
     exit(1);
   }
   
@@ -70,7 +72,7 @@ void parseOptions(int argc,
   descripts.add_options()
     ("help", "describe options")
     ("RefreshHz", po::value<double>(&_refreshHz), "Refresh rate (Hz)")
-    ("host", po::value<std::string>(&_serverHost), "Set the server host")
+    ("host", po::value<string>(&_serverHost), "Set the server host")
     ("port", po::value<int>(&_serverPort), "Set the server port")
     ("debug", po::value<int>(&_debugLevel),
      "Set the debug level: 0, 1, or 2. 0 is the default")
@@ -80,15 +82,15 @@ void parseOptions(int argc,
   try {
     po::store(po::parse_command_line(argc, argv, descripts), vm);
   }
-  catch(std::exception ex) {
-    std::cerr << "ERROR parsing command line" << std::endl;
-    std::cerr << descripts << std::endl;
+  catch(exception ex) {
+    cerr << "ERROR parsing command line" << endl;
+    cerr << descripts << endl;
     exit(1);
   }
   po::notify(vm);
 
   if (vm.count("help")) {
-    std::cout << descripts << std::endl;
+    cout << descripts << endl;
     exit(1);
   }
 
@@ -105,9 +107,9 @@ int
   parseOptions(argc, argv);
 
   if (_debugLevel) {
-    std::cerr << "Running tcpscope" << std::endl;
-    std::cerr << "  server host: " << _serverHost << std::endl;
-    std::cerr << "  server port: " << _serverPort << std::endl;
+    cerr << "Running tcpscope" << endl;
+    cerr << "  server host: " << _serverHost << endl;
+    cerr << "  server port: " << _serverPort << endl;
   }
 
   QApplication app(argc, argv);
@@ -120,7 +122,7 @@ int
 
   // create the data source reader
   
-  AScopeReader reader(_serverHost, _serverPort, scope);
+  AScopeReader reader(_serverHost, _serverPort, scope, _debugLevel);
   
   // connect the reader to the scope to receive new time series data
   
