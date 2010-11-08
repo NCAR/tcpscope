@@ -1,78 +1,43 @@
 #include "AScopeReader.h"
-#include <QMetaType>
 #include <cerrno>
 #include <radar/iwrf_functions.hh>
 using namespace std;
 
-Q_DECLARE_METATYPE(AScope::TimeSeries)
-  
-// Note that the timer interval for QtTSReader is 0; we
-// are accepting all DDS samples.
-  AScopeReader::AScopeReader(const string &host,
-                             int port,
-                             AScope &scope,
-                             int debugLevel):
-         _serverHost(host),
-          _serverPort(port),
-          _scope(scope),
-          _lastTryConnectTime(0),
-          _debugLevel(debugLevel),
-          _pulseCount(0)
+// Note that the timer interval for QtTSReader is 0
+
+AScopeReader::AScopeReader(const string &host,
+                           int port,
+                           AScope &scope,
+                           int debugLevel):
+        _debugLevel(debugLevel),
+        _serverHost(host),
+        _serverPort(port),
+        _scope(scope),
+        _lastTryConnectTime(0),
+        _pulseCount(0),
+        _pulseCountSinceSync(0)
 {
+  
   // this are required in order to send structured data types
   // via a qt signal
   qRegisterMetaType<AScope::TimeSeries>();
-
+  
   // start timer for checking socket every 50 msecs
   _sockTimerId = startTimer(50);
 
 }
 
-AScopeReader::~AScopeReader() {
+AScopeReader::~AScopeReader()
+
+{
+
+  // close socket if open
 
   if (_sock.isOpen()) {
     if (_debugLevel) {
       cerr << "Closing socket to IWRF data server" << endl;
     }
     _sock.close();
-  }
-
-}
-
-//////////////////////////////////////////////////////////////////////////////
-void
-  AScopeReader::returnItemSlot(AScope::TimeSeries pItem) {
-  
-
-}
-
-////////////////////////////////////////////////////////////////////////
-/// Run continuously, reading data from the server
-
-void AScopeReader::readFromServer() 
-
-{
-
-  while (true) {
-
-    int tsLength  = 10;
-    
-    // copy required metadata
-    
-    AScope::ShortTimeSeries pItem;
-    //     pItem.gates = ddsItem->tsList[0].hskp.gates;
-    //     pItem.chanId = ddsItem->chanId;
-    //     pItem.sampleRateHz = 1.0/ddsItem->tsList[0].hskp.prt1;
-    //     pItem.handle = (void*) ddsItem;
-    
-    // copy the pointers to the beam data
-    pItem.IQbeams.resize(tsLength);
-    for (int i = 0; i < tsLength; i++) {
-      // pItem.IQbeams[i] = &ddsItem->tsList[i].data[0];
-    }
-    
-    // send the sample to our clients
-    emit newItem(pItem);
   }
 
 }
@@ -116,31 +81,7 @@ void AScopeReader::timerEvent(QTimerEvent *event)
     if (_readFromServer()) {
     }
 
-    // get all available beams
-    
-    //     while (true) {
-    
-    // get the next ray from the reader queue
-    // responsibility for this ray memory passes to
-    // this (the master) thread
-    
-    //       RadxVol vol;
-    //       const RadxRay *ray = _reader->getNextRay(vol);
-    //       if (ray == NULL) {
-    //         break; // no pending rays
-    //       }
-    
-    // draw the beam
-    
-    //       _drawBeam(vol, ray);
-    
-    // delete the ray
-    
-    // delete ray;
-    
-    // } // while
-
-  }
+  } // if (event->timerId() == _sockTimerId)
     
 }
 
@@ -159,7 +100,7 @@ int AScopeReader::_readFromServer()
     // read packet from time series server server
 
     int packetId, packetLen;
-    if (_readTcpPacket( packetId, packetLen, buf)) {
+    if (_readPacket(packetId, packetLen, buf)) {
       cerr << "ERROR - AScopeReader::_readFromServer" << endl;
       return -1;
     }
@@ -170,26 +111,17 @@ int AScopeReader::_readFromServer()
     // handle packet types
 
     if (packetId == IWRF_PULSE_HEADER_ID) {
+
+      _handlePulse(buf);
+
+    } else {
+
+      _info.setFromBuffer(buf.getPtr(), buf.getLen());
+
+    }
+
+#ifdef JUNK
       
-      // pulse header and data
-      
-      // iwrf_pulse_header_t &pHdr = *((iwrf_pulse_header_t *) buf.getPtr());
-      
-      // scale data as applicable
-      
-//       if(_params.apply_scale) {
-//         iwrf_pulse_scale_data(buf.getPtr(), buf.getLen(),
-//                               _params.scale,_params.bias);
-//       }
-
-      // add to message
-
-//       _msg.addPart(packetId, packetLen, buf.getPtr());
-
-      // delay as needed
-
-//       _doReadDelay(pHdr.packet);
-
     } else if (packetId == IWRF_RADAR_INFO_ID) {
       
       // radar info - make local copy
@@ -197,24 +129,12 @@ int AScopeReader::_readFromServer()
       iwrf_radar_info_t *radar = (iwrf_radar_info_t *) buf.getPtr();
       _tsRadarInfo = *radar;
       
-      // add to FMQ if shmem is not active
-
-//       if (_sysconShmem != NULL) {
-//         _msg.addPart(packetId, packetLen, buf.getPtr());
-//       }
-
     } else if (packetId == IWRF_SCAN_SEGMENT_ID) {
 
       // scan segment - make local copy
 
       iwrf_scan_segment_t *scan = (iwrf_scan_segment_t *) buf.getPtr();
       _tsScanSegment = *scan;
-
-      // add to FMQ if shmem is not active
-
-//       if (_sysconShmem != NULL) {
-//         _msg.addPart(packetId, packetLen, buf.getPtr());
-//       }
 
     } else if (packetId == IWRF_TS_PROCESSING_ID) {
       
@@ -223,25 +143,11 @@ int AScopeReader::_readFromServer()
       iwrf_ts_processing_t *proc = (iwrf_ts_processing_t *) buf.getPtr();
       _tsTsProcessing = *proc;
       
-      // add to FMQ if shmem is not active
-
-//       if (_sysconShmem != NULL) {
-//         _msg.addPart(packetId, packetLen, buf.getPtr());
-//       }
-
-    } else {
-
-      // other packet type
-      // add to outgoing message
-      
-//       _msg.addPart(packetId, packetLen, buf.getPtr());
-
     }
 
-    // if the message is large enough, write to the FMQ
-    
-//     _writeToFmq();
-    
+#endif
+
+
   } // while (true)
 
   return 0;
@@ -252,7 +158,7 @@ int AScopeReader::_readFromServer()
 // Read in next packet, set id and load buffer.
 // Returns 0 on success, -1 on failure
 
-int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
+int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
 
 {
   bool haveGoodHeader = false;
@@ -261,73 +167,84 @@ int AScopeReader::_readTcpPacket(int &id, int &len, MemBuf &buf)
   si32 packetTop[2];
   _timedOut = false;
 
-  do {
+  while (!haveGoodHeader) {
 
     // peek at the first 8 bytes
+
     if (_peekAtBuffer(packetTop, sizeof(packetTop))) {
-      cerr << "ERROR - AScopeReader::_readTcpPacket" << endl;
+      cerr << "ERROR - AScopeReader::_readPacket" << endl;
       return -1;
     }
+
     if (_timedOut) {
       return 0;
     }
     
     // check ID for packet, and get its length
+    
     packetId = packetTop[0];
     packetLen = packetTop[1];
 
     if (iwrf_check_packet_id(packetId, packetLen)) {
+
       // out of order, so close and return error
+      // this will force a reconnection and resync
+
       cerr << "ERROR - AScopeReader::_readPacket" << endl;
       cerr << " Incoming data stream out of sync" << endl;
       cerr << " Closing socket" << endl;
       _sock.close();
       return -1;
-      // read bytes to re-synchronize data stream
-      // if (_reSync(sock)) {
-      //  cerr << "ERROR - AScopeReader::_readPacket" << endl;
-      //  cerr << " Cannot re-sync incoming data stream from socket";
-      //  cerr << endl;
-      //  return -1;
-      // }
+
     } else {
+
       haveGoodHeader = true;
       id = packetId;
       len = packetLen;
+
     }
-  } while (!haveGoodHeader);
+
+  } // while (!haveGoodHeader)
     
   // read it in
-  buf.reserve(packetLen);
 
+  buf.reserve(packetLen);
+  
   if (_sock.readBuffer(buf.getPtr(), packetLen)) {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
       _timedOut = true;
       return 0;
     } else {
-      cerr << "ERROR - AScopeReader::_readTcpPacket" << endl;
+      cerr << "ERROR - AScopeReader::_readPacket" << endl;
       cerr << "  " << _sock.getErrStr() << endl;
       return -1;
     }
   }
   
-  if (_debugLevel > 1 &&
-      id != IWRF_PULSE_HEADER_ID &&
-      id != IWRF_RVP8_PULSE_HEADER_ID) {
+  if (id == IWRF_PULSE_HEADER_ID) {
+    _pulseCount++;
+    _pulseCountSinceSync++;
+  }
+    
+  if (_debugLevel > 1 && id != IWRF_PULSE_HEADER_ID) {
+    
     cerr << "Read in TCP packet, id, len: " << iwrf_packet_id_to_str(id)
 	 << ", " << packetLen << endl;
-
+    
     if(_pulseCount > 0 && id == IWRF_SYNC_ID) {
-      cerr << "Read " << _pulseCount
-           << " Pulse packets since last sync" << endl;
-      _pulseCount = 0;  
+      cerr << "N pulses since last sync: " << _pulseCountSinceSync << endl;
+      _pulseCountSinceSync = 0;  
     }
+    
   } else {
-    _pulseCount++;  // Keep track of pulse packets
-    if (_debugLevel > 2) {
-      cerr << "Read in TCP packet, id, len: " << iwrf_packet_id_to_str(id)
-           << ", " << packetLen << endl;
+
+    if (_debugLevel > 1) {
+      cerr << "Read in TCP packet, id, len, count: " << ", "
+           << iwrf_packet_id_to_str(id) << ", "
+           << packetLen << ", "
+           << _pulseCount << endl;
     }
+
   }
   
   if (_debugLevel > 1 && 
@@ -371,82 +288,126 @@ int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
 
 }
 
-#ifdef NOTNOW
+///////////////////////////////////////////////////////
+// handle pulse packet
 
-///////////////////////////////////////////
-// re-sync the data stream
-// returns 0 on success, -1 on error
+void AScopeReader::_handlePulse(const MemBuf &buf)
 
-int AScopeReader::_reSync(Socket &sock)
-  
 {
-
-  int sync_count = 0;
   
-  if (_debugLevel) {
-    cerr << "Trying to resync ....." << endl;
-  }
-  
-  unsigned int check[2];
+  // create a new pulse
 
-  while (true) {
+  IwrfTsPulse *pulse = new IwrfTsPulse(_info);
+
+  // set the data on the pulse, as floats
+
+  pulse->setFromBuffer(buf.getPtr(), buf.getLen(), true);
+
+  // add to the pulse vector
+
+  _pulses.push_back(pulse);
+
+  // if we have enough samples, send the data to
+  // the scope
+
+  if (_pulses.size() == _nSamples) {
     
-    // peek at the next 8 bytes
+    // compute max gates and channels
     
-    if (_peekAtBuffer(sock, check, sizeof(check))) {
-      cerr << "ERROR - AScopeReader::_reSync" << endl;
-      cerr << "  " << sock.getErrStr() << endl;
-      return -1;
-    }
-
-//     float *fc1,*fc2;    // Cast to floats for diagnostic output
-//     fc1 = (float*) check;
-//     fc2 = (float *)  fc1 +1;
-
-//     if(sync_count < 4000 && sync_count%8 == 0) {
-//       fprintf(stderr,"DEBUG: %d bytes, %X %X   %d %d   %f %f\n",sync_count,
-//               check[0],check[1],
-//               check[0],check[1],
-//               *fc1,*fc2);
-//     }
-
-    if((check[0] == IWRF_RADAR_INFO_ID &&
-        check[1] == sizeof(iwrf_radar_info_t)) ||
-       (check[0] == IWRF_XMIT_SAMPLE_ID &&
-        check[1] == sizeof(iwrf_xmit_sample_t))) {
-      return 0; // We've found a legitimate IWRF packet header
-    } 
-
-    // Search for the sync packet 
-    if (check[0] == IWRF_SYNC_VAL_00 && check[1] == IWRF_SYNC_VAL_01) {
-      // These are "sync packet" bytes read the 8 sync bytes and move on
-      if (_debugLevel) {
-	cerr << "Found sync packet, back in sync" << endl;
+    int nGates = 0;
+    int nChannels = 0;
+    
+    for (size_t ii = 0; ii < _pulses.size(); ii++) {
+      const IwrfTsPulse *pulse = _pulses[ii];
+      int nGatesPulse = pulse->getNGates();
+      if (nGatesPulse > nGates) {
+        nGates = nGatesPulse;
       }
-      if (sock.readBufferHb(check, sizeof(check), sizeof(check),
-			    NULL, 1000)) {
-	cerr << "ERROR - AScopeReader::_reSync" << endl;
-	cerr << "  " << sock.getErrStr() << endl;
-	return -1;
+      int nChannelsPulse = pulse->getNChannels();
+      if (nChannelsPulse > nChannels) {
+        nChannels = nChannelsPulse;
       }
-      return 0;
-    }
+    } // ii
+
+    // create channel 0 time series objects for AScope
+
+    AScope::FloatTimeSeries tsChan0;
+    tsChan0.gates = nGates;
+    tsChan0.chanId = 0;
+    tsChan0.sampleRateHz = 1.0 / _pulses[0]->get_prt();
+    tsChan0.handle = (void*) this;
     
-    // no sync yet, read 1 byte and start again
+    for (size_t ii = 0; ii < _pulses.size(); ii++) {
 
-    char byteVal;
-    if (sock.readBufferHb(&byteVal, 1, 1, NULL, 1000)) {
-      cerr << "ERROR - AScopeReader::_reSync" << endl;
-      cerr << "  " << sock.getErrStr() << endl;
-      return -1;
+      const IwrfTsPulse *pulse = _pulses[ii];
+      int nGatesPulse = _pulses[ii]->getNGates();
+      
+      fl32 *iq = new fl32[nGates * 2];
+      memset(iq, 0, nGates * 2 * sizeof(fl32));
+      memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
+
+      tsChan0.IQbeams.push_back(iq);
+
+      // send the time series to the display
+
+      emit newItem(tsChan0);
+
+    } // ii
+
+    if (nChannels > 1) {
+
+      // create channel 1 time series objects for AScope
+
+      AScope::FloatTimeSeries tsChan1;
+      tsChan1.gates = nGates;
+      tsChan1.chanId = 1;
+      tsChan1.sampleRateHz = 1.0 / _pulses[0]->get_prt();
+      tsChan1.handle = (void*) this;
+      
+      for (size_t ii = 0; ii < _pulses.size(); ii++) {
+        
+        const IwrfTsPulse *pulse = _pulses[ii];
+        int nGatesPulse = _pulses[ii]->getNGates();
+        
+        fl32 *iq = new fl32[nGates * 2];
+        memset(iq, 0, nGates * 2 * sizeof(fl32));
+
+        if (pulse->getIq1() != NULL) {
+          memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
+        }
+        
+        tsChan1.IQbeams.push_back(iq);
+        
+      } // ii
+
+      // send the time series to the display
+
+      emit newItem(tsChan1);
+
+    } // if (nChannels > 1)
+
+    // free up the pulses
+
+    for (size_t ii = 0; ii < _pulses.size(); ii++) {
+      delete _pulses[ii];
     }
-    sync_count++;
+    _pulses.clear();
 
-  } // while
-
-  return -1;
+  } // if (_pulses.size() == _nSamples)
 
 }
 
-#endif
+      
+//////////////////////////////////////////////////////////////////////////////
+// Clean up when iq data is returned from display
+
+void AScopeReader::returnItemSlot(AScope::TimeSeries ts)
+
+{
+  
+  for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
+    delete[] (fl32 *) ts.IQbeams[ii];
+  }
+  
+}
 
