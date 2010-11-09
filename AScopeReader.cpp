@@ -50,7 +50,9 @@ void AScopeReader::timerEvent(QTimerEvent *event)
 
   if (event->timerId() == _sockTimerId) {
 
-    cerr << "Servicing socket timer event" << endl;
+    if (_debugLevel > 0) {
+      cerr << "Servicing socket timer event" << endl;
+    }
 
     if (!_sock.isOpen()) {
       // try opening, once per second
@@ -97,7 +99,7 @@ int AScopeReader::_readFromServer()
   // read data until nSamples pulses have been gathered
   
   size_t nSamples = _scope.getBlockSize();
-  if (nSamples < 16) nSamples = 16;
+  // if (nSamples < 16) nSamples = 16;
 
   MemBuf buf;
   while (_pulses.size() < nSamples) {
