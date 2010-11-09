@@ -82,6 +82,10 @@ private:
   IwrfTsInfo _info;
   vector<IwrfTsPulse *> _pulses;
 
+  // sequence number for time series to ascope
+
+  size_t _tsSeqNum;
+
   // methods
   
   int _readFromServer();

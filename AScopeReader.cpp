@@ -15,7 +15,8 @@ AScopeReader::AScopeReader(const string &host,
         _scope(scope),
         _lastTryConnectTime(0),
         _pulseCount(0),
-        _pulseCountSinceSync(0)
+        _pulseCountSinceSync(0),
+        _tsSeqNum(0)
 {
   
   // this are required in order to send structured data types
@@ -320,7 +321,6 @@ void AScopeReader::_sendDataToAScope()
   tsChan0.gates = nGates;
   tsChan0.chanId = 0;
   tsChan0.sampleRateHz = 1.0 / _pulses[0]->get_prt();
-  tsChan0.handle = (void*) this;
   
   for (size_t ii = 0; ii < _pulses.size(); ii++) {
     
@@ -333,12 +333,20 @@ void AScopeReader::_sendDataToAScope()
     
     tsChan0.IQbeams.push_back(iq);
     
-    // send the time series to the display
-    
-    emit newItem(tsChan0);
-    
   } // ii
   
+  // set sequence number
+
+  size_t *seq0 = new size_t;
+  *seq0 = _tsSeqNum;
+  tsChan0.handle = seq0;
+  cerr << "Sending ts, seq num: " << _tsSeqNum << endl;
+  _tsSeqNum++;
+
+  // send the time series to the display
+  
+  emit newItem(tsChan0);
+    
   if (nChannels > 1) {
     
     // create channel 1 time series objects for AScope
@@ -365,7 +373,15 @@ void AScopeReader::_sendDataToAScope()
       
     } // ii
     
-      // send the time series to the display
+    // set sequence number
+    
+    size_t *seq1 = new size_t;
+    *seq1 = _tsSeqNum;
+    tsChan1.handle = seq1;
+    cerr << "Sending ts, seq num: " << _tsSeqNum << endl;
+    _tsSeqNum++;
+
+    // send the time series to the display
     
     emit newItem(tsChan1);
     
@@ -387,10 +403,14 @@ void AScopeReader::_sendDataToAScope()
 void AScopeReader::returnItemSlot(AScope::TimeSeries ts)
 
 {
+
+  size_t *seqNum = (size_t *) ts.handle;
+  cerr << "11111 Retrieving ts, seq num: " << *seqNum << endl;
+  delete seqNum;
   
-//   for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
-//     delete[] (fl32 *) ts.IQbeams[ii];
-//   }
+  for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
+    delete[] (fl32 *) ts.IQbeams[ii];
+  }
   
 }
 
