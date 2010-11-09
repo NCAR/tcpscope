@@ -189,10 +189,9 @@ int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
 
   } // while (!haveGoodHeader)
     
-  // read it in
+  // read packet in
 
   buf.reserve(packetLen);
-  
   if (_sock.readBuffer(buf.getPtr(), packetLen)) {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
       _timedOut = true;
@@ -209,37 +208,34 @@ int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
     _pulseCountSinceSync++;
   }
     
-  if (_debugLevel > 1 && id != IWRF_PULSE_HEADER_ID) {
-    
-    cerr << "Read in TCP packet, id, len: " << iwrf_packet_id_to_str(id)
-	 << ", " << packetLen << endl;
-    
-    if(_pulseCount > 0 && id == IWRF_SYNC_ID) {
-      cerr << "N pulses since last sync: " << _pulseCountSinceSync << endl;
-      _pulseCountSinceSync = 0;  
-    }
-    
-  } else {
+  if (_debugLevel > 2) {
 
-    if (_debugLevel > 1) {
-      cerr << "Read in TCP packet, id, len, count: " << ", "
+    iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
+
+  } else if (_debugLevel > 1) {
+
+    if (id == IWRF_PULSE_HEADER_ID) {
+      cerr << "Read in PULSE packet, id, len, count: " << ", "
            << iwrf_packet_id_to_str(id) << ", "
            << packetLen << ", "
            << _pulseCount << endl;
-    }
+    } else {
+      cerr << "Read in TCP packet, id, len: "
+           << iwrf_packet_id_to_str(id) << ", "
+           << packetLen << endl;
+      if(id == IWRF_SYNC_ID) {
+        if(_pulseCount > 0) {
+          cerr << "N pulses since last sync: " << _pulseCountSinceSync << endl;
+          _pulseCountSinceSync = 0;  
+        }
+      } else {
+        iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
+      }
+      
+    } // if (id == IWRF_PULSE_HEADER_ID)
 
-  }
-  
-  if (_debugLevel > 1 && 
-      id != IWRF_PULSE_HEADER_ID && id != IWRF_SYNC_ID) {
-    iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
-  }
-  
-  if(_debugLevel > 2 && 
-     (id == IWRF_PULSE_HEADER_ID || id == IWRF_SYNC_ID))   {
-    iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
-  }
-
+  } // if (_debugLevel > 2) 
+    
   return 0;
 
 }
@@ -255,10 +251,12 @@ int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
 
   _timedOut = false;
 
+  // peek with no wait
   if (_sock.peek(buf, nbytes, 0) == 0) {
     return 0;
   } else {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
+      // no data available
       _timedOut = true;
       return 0;
     } else {
