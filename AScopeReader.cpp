@@ -340,7 +340,9 @@ void AScopeReader::_sendDataToAScope()
   size_t *seq0 = new size_t;
   *seq0 = _tsSeqNum;
   tsChan0.handle = seq0;
-  cerr << "Sending ts, seq num: " << _tsSeqNum << endl;
+  if (_debugLevel > 1) {
+    cerr << "Creating ts data for chan 0, seq num: " << _tsSeqNum << endl;
+  }
   _tsSeqNum++;
 
   // send the time series to the display
@@ -378,7 +380,9 @@ void AScopeReader::_sendDataToAScope()
     size_t *seq1 = new size_t;
     *seq1 = _tsSeqNum;
     tsChan1.handle = seq1;
-    cerr << "Sending ts, seq num: " << _tsSeqNum << endl;
+    if (_debugLevel > 1) {
+      cerr << "Creating ts data for chan 1, seq num: " << _tsSeqNum << endl;
+    }
     _tsSeqNum++;
 
     // send the time series to the display
@@ -405,7 +409,9 @@ void AScopeReader::returnItemSlot(AScope::TimeSeries ts)
 {
 
   size_t *seqNum = (size_t *) ts.handle;
-  cerr << "11111 Retrieving ts, seq num: " << *seqNum << endl;
+  if (_debugLevel > 1) {
+    cerr << "--->> Freeing ts data, seq num: " << *seqNum << endl;
+  }
   delete seqNum;
   
   for (size_t ii = 0; ii < ts.IQbeams.size(); ii++) {
