@@ -26,6 +26,10 @@ AScopeReader::AScopeReader(const string &host,
   // start timer for checking socket every 50 msecs
   _sockTimerId = startTimer(50);
 
+  // pulse mode
+
+  _xmitMode = XMIT_MODE_H_ONLY;
+
 }
 
 AScopeReader::~AScopeReader()
@@ -99,11 +103,10 @@ int AScopeReader::_readFromServer()
 
   // read data until nSamples pulses have been gathered
   
-  size_t nSamples = _scope.getBlockSize();
-  // if (nSamples < 16) nSamples = 16;
+  _nSamples = _scope.getBlockSize();
 
   MemBuf buf;
-  while (_pulses.size() < nSamples) {
+  while (true) {
     
     // read packet from time series server server
     
@@ -132,9 +135,37 @@ int AScopeReader::_readFromServer()
 
     }
 
+    // check we have enough data
+    
+    if ((int) _pulsesH.size() >= _nSamples) {
+
+      if (_pulsesV.size() == 0) {
+        // H data only
+        _xmitMode = XMIT_MODE_H_ONLY;
+        return 0;
+      } else if ((int) _pulsesV.size() >= _nSamples) {
+        // Equal number H and V implies alternating data
+        _xmitMode = XMIT_MODE_ALTERNATING;
+        return 0;
+      }
+
+    } else if ((int) _pulsesV.size() >= _nSamples) {
+      
+      if (_pulsesH.size() == 0) {
+        // V data only
+        _xmitMode = XMIT_MODE_V_ONLY;
+        return 0;
+      } else if ((int) _pulsesH.size() >= _nSamples) {
+        // Equal number H and V implies alternating data
+        _xmitMode = XMIT_MODE_ALTERNATING;
+        return 0;
+      }
+
+    }
+
   } // while 
 
-  return 0;
+  return -1;
 
 }
 
@@ -285,9 +316,14 @@ void AScopeReader::_addPulse(const MemBuf &buf)
 
   pulse->setFromBuffer(buf.getPtr(), buf.getLen(), true);
 
-  // add to the pulse vector
-  
-  _pulses.push_back(pulse);
+  // add to vector based on H/V flag
+
+  int hvFlag = pulse->get_hv_flag();
+  if (hvFlag) {
+    _pulsesH.push_back(pulse);
+  } else {
+    _pulsesV.push_back(pulse);
+  }
 
 }
       
@@ -303,8 +339,8 @@ void AScopeReader::_sendDataToAScope()
   int nGates = 0;
   int nChannels = 0;
   
-  for (size_t ii = 0; ii < _pulses.size(); ii++) {
-    const IwrfTsPulse *pulse = _pulses[ii];
+  for (size_t ii = 0; ii < _pulsesH.size(); ii++) {
+    const IwrfTsPulse *pulse = _pulsesH[ii];
     int nGatesPulse = pulse->getNGates();
     if (nGatesPulse > nGates) {
       nGates = nGatesPulse;
@@ -315,92 +351,138 @@ void AScopeReader::_sendDataToAScope()
     }
   } // ii
   
-  // create channel 0 time series objects for AScope
-  
-  AScope::FloatTimeSeries tsChan0;
-  tsChan0.gates = nGates;
-  tsChan0.chanId = 0;
-  tsChan0.sampleRateHz = 1.0 / _pulses[0]->get_prt();
-  
-  for (size_t ii = 0; ii < _pulses.size(); ii++) {
-    
-    const IwrfTsPulse *pulse = _pulses[ii];
-    int nGatesPulse = _pulses[ii]->getNGates();
-    
-    fl32 *iq = new fl32[nGates * 2];
-    memset(iq, 0, nGates * 2 * sizeof(fl32));
-    memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
-    
-    tsChan0.IQbeams.push_back(iq);
-    
+  for (size_t ii = 0; ii < _pulsesV.size(); ii++) {
+    const IwrfTsPulse *pulse = _pulsesV[ii];
+    int nGatesPulse = pulse->getNGates();
+    if (nGatesPulse > nGates) {
+      nGates = nGatesPulse;
+    }
+    int nChannelsPulse = pulse->getNChannels();
+    if (nChannelsPulse > nChannels) {
+      nChannels = nChannelsPulse;
+    }
   } // ii
+
+  if (_xmitMode == XMIT_MODE_H_ONLY) {
+
+    // load H chan 0, send to scope
+
+    AScope::FloatTimeSeries tsChan0;
+    _loadTs(nGates, _pulsesH, 0, tsChan0);
+    emit newItem(tsChan0);
+
+    // load H chan 1, send to scope
+
+    AScope::FloatTimeSeries tsChan1;
+    _loadTs(nGates, _pulsesH, 1, tsChan1);
+    emit newItem(tsChan1);
+
+  } else if (_xmitMode == XMIT_MODE_V_ONLY) {
+
+    // load V chan 0, send to scope
+
+    AScope::FloatTimeSeries tsChan0;
+    _loadTs(nGates, _pulsesV, 0, tsChan0);
+    emit newItem(tsChan0);
+
+    // load V chan 1, send to scope
+
+    AScope::FloatTimeSeries tsChan1;
+    _loadTs(nGates, _pulsesV, 1, tsChan1);
+    emit newItem(tsChan1);
+    
+  } else {
+
+    // alternating mode, 4 channels
+
+    // load H chan 0, send to scope
+
+    AScope::FloatTimeSeries tsChan0;
+    _loadTs(nGates, _pulsesH, 0, tsChan0);
+    emit newItem(tsChan0);
+
+    // load H chan 1, send to scope
+
+    AScope::FloatTimeSeries tsChan1;
+    _loadTs(nGates, _pulsesH, 1, tsChan1);
+    emit newItem(tsChan1);
+
+    // load V chan 0, send to scope
+
+    AScope::FloatTimeSeries tsChan2;
+    _loadTs(nGates, _pulsesV, 2, tsChan2);
+    emit newItem(tsChan2);
+
+    // load V chan 1, send to scope
+
+    AScope::FloatTimeSeries tsChan3;
+    _loadTs(nGates, _pulsesV, 3, tsChan3);
+    emit newItem(tsChan3);
+    
+  }
+
+  // free up the pulses
+  
+  for (size_t ii = 0; ii < _pulsesH.size(); ii++) {
+    delete _pulsesH[ii];
+  }
+  _pulsesH.clear();
+
+  for (size_t ii = 0; ii < _pulsesV.size(); ii++) {
+    delete _pulsesV[ii];
+  }
+  _pulsesV.clear();
+
+}
+
+///////////////////////////////////////////////
+// load up time series object
+
+void AScopeReader::_loadTs(int nGates,
+                           const vector<IwrfTsPulse *> &pulses,
+                           int channel,
+                           AScope::FloatTimeSeries &ts)
+
+{
+  
+  if (pulses.size() < 2) return;
+
+  // set header
+
+  ts.gates = nGates;
+  ts.chanId = channel;
+  ts.sampleRateHz = 1.0 / pulses[0]->get_prt();
   
   // set sequence number
 
   size_t *seq0 = new size_t;
   *seq0 = _tsSeqNum;
-  tsChan0.handle = seq0;
+  ts.handle = seq0;
   if (_debugLevel > 1) {
-    cerr << "Creating ts data for chan 0, seq num: " << _tsSeqNum << endl;
+    cerr << "Creating ts data, seq num: " << _tsSeqNum << endl;
   }
   _tsSeqNum++;
-
-  // send the time series to the display
   
-  emit newItem(tsChan0);
+  // load IQ data
+
+  for (size_t ii = 0; ii < pulses.size(); ii++) {
     
-  if (nChannels > 1) {
+    const IwrfTsPulse *pulse = pulses[ii];
+    int nGatesPulse = pulses[ii]->getNGates();
     
-    // create channel 1 time series objects for AScope
-    
-    AScope::FloatTimeSeries tsChan1;
-    tsChan1.gates = nGates;
-    tsChan1.chanId = 1;
-    tsChan1.sampleRateHz = 1.0 / _pulses[0]->get_prt();
-    tsChan1.handle = (void*) this;
-    
-    for (size_t ii = 0; ii < _pulses.size(); ii++) {
-      
-      const IwrfTsPulse *pulse = _pulses[ii];
-      int nGatesPulse = _pulses[ii]->getNGates();
-      
-      fl32 *iq = new fl32[nGates * 2];
-      memset(iq, 0, nGates * 2 * sizeof(fl32));
-      
-      if (pulse->getIq1() != NULL) {
-        memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
-      }
-      
-      tsChan1.IQbeams.push_back(iq);
-      
-    } // ii
-    
-    // set sequence number
-    
-    size_t *seq1 = new size_t;
-    *seq1 = _tsSeqNum;
-    tsChan1.handle = seq1;
-    if (_debugLevel > 1) {
-      cerr << "Creating ts data for chan 1, seq num: " << _tsSeqNum << endl;
+    fl32 *iq = new fl32[nGates * 2];
+    memset(iq, 0, nGates * 2 * sizeof(fl32));
+    if (channel == 0 || channel == 2) {
+      memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
+    } else if (pulse->getIq1() != NULL) {
+      memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
     }
-    _tsSeqNum++;
-
-    // send the time series to the display
+    ts.IQbeams.push_back(iq);
     
-    emit newItem(tsChan1);
-    
-  } // if (nChannels > 1)
+  } // ii
   
-  // free up the pulses
-  
-  for (size_t ii = 0; ii < _pulses.size(); ii++) {
-    delete _pulses[ii];
-  }
-  _pulses.clear();
-
 }
-
-      
+    
 //////////////////////////////////////////////////////////////////////////////
 // Clean up when iq data is returned from display
 

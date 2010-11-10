@@ -74,13 +74,24 @@ private:
   
   // pulse stats
 
+  int _nSamples;
   int _pulseCount;
   int _pulseCountSinceSync;
   
   // info and pulses
 
   IwrfTsInfo _info;
-  vector<IwrfTsPulse *> _pulses;
+  vector<IwrfTsPulse *> _pulsesH; // when H/V flag is 1
+  vector<IwrfTsPulse *> _pulsesV; // when H/V flag is 0
+
+  // xmit mode
+
+  typedef enum {
+    XMIT_MODE_H_ONLY,
+    XMIT_MODE_V_ONLY,
+    XMIT_MODE_ALTERNATING
+  } xmitMode_t;
+  xmitMode_t _xmitMode;
 
   // sequence number for time series to ascope
 
@@ -93,6 +104,10 @@ private:
   int _peekAtBuffer(void *buf, int nbytes);
   void _addPulse(const MemBuf &buf);
   void _sendDataToAScope();
+  void _loadTs(int nGates,
+               const vector<IwrfTsPulse *> &pulses,
+               int channel,
+               AScope::FloatTimeSeries &ts);
 
 
 };
