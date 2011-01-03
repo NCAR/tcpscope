@@ -188,6 +188,7 @@ int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
 
     if (_peekAtBuffer(packetTop, sizeof(packetTop))) {
       cerr << "ERROR - AScopeReader::_readPacket" << endl;
+      _sock.close();
       return -1;
     }
 
@@ -231,6 +232,7 @@ int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
     } else {
       cerr << "ERROR - AScopeReader::_readPacket" << endl;
       cerr << "  " << _sock.getErrStr() << endl;
+      _sock.close();
       return -1;
     }
   }
