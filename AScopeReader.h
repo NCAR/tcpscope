@@ -105,8 +105,9 @@ private:
   void _addPulse(const MemBuf &buf);
   void _sendDataToAScope();
   void _loadTs(int nGates,
+               int channelIn,
                const vector<IwrfTsPulse *> &pulses,
-               int channel,
+               int channelOut,
                AScope::FloatTimeSeries &ts);
 
 

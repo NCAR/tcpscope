@@ -370,29 +370,41 @@ void AScopeReader::_sendDataToAScope()
     // load H chan 0, send to scope
 
     AScope::FloatTimeSeries tsChan0;
-    _loadTs(nGates, _pulsesH, 0, tsChan0);
+    _loadTs(nGates, 0, _pulsesH, 0, tsChan0);
     emit newItem(tsChan0);
 
     // load H chan 1, send to scope
 
     AScope::FloatTimeSeries tsChan1;
-    _loadTs(nGates, _pulsesH, 1, tsChan1);
+    _loadTs(nGates, 1, _pulsesH, 1, tsChan1);
     emit newItem(tsChan1);
+
+    // load H burst, send to scope as chan 2
+
+    AScope::FloatTimeSeries tsChan2;
+    _loadTs(nGates, 2, _pulsesH, 2, tsChan2);
+    emit newItem(tsChan2);
 
   } else if (_xmitMode == XMIT_MODE_V_ONLY) {
 
     // load V chan 0, send to scope
-
+    
     AScope::FloatTimeSeries tsChan0;
-    _loadTs(nGates, _pulsesV, 0, tsChan0);
+    _loadTs(nGates, 0, _pulsesV, 0, tsChan0);
     emit newItem(tsChan0);
 
     // load V chan 1, send to scope
 
     AScope::FloatTimeSeries tsChan1;
-    _loadTs(nGates, _pulsesV, 1, tsChan1);
+    _loadTs(nGates, 1, _pulsesV, 1, tsChan1);
     emit newItem(tsChan1);
     
+    // load V burst, send to scope as chan 3
+    
+    AScope::FloatTimeSeries tsChan3;
+    _loadTs(nGates, 3, _pulsesV, 3, tsChan3);
+    emit newItem(tsChan3);
+
   } else {
 
     // alternating mode, 4 channels
@@ -400,25 +412,25 @@ void AScopeReader::_sendDataToAScope()
     // load H chan 0, send to scope
 
     AScope::FloatTimeSeries tsChan0;
-    _loadTs(nGates, _pulsesH, 0, tsChan0);
+    _loadTs(nGates, 0, _pulsesH, 0, tsChan0);
     emit newItem(tsChan0);
 
     // load H chan 1, send to scope
-
+    
     AScope::FloatTimeSeries tsChan1;
-    _loadTs(nGates, _pulsesH, 1, tsChan1);
+    _loadTs(nGates, 1, _pulsesH, 1, tsChan1);
     emit newItem(tsChan1);
 
-    // load V chan 0, send to scope
+    // load V chan 0, send to scope as chan 2
 
     AScope::FloatTimeSeries tsChan2;
-    _loadTs(nGates, _pulsesV, 2, tsChan2);
+    _loadTs(nGates, 0, _pulsesV, 2, tsChan2);
     emit newItem(tsChan2);
 
-    // load V chan 1, send to scope
+    // load V chan 1, send to scope as chan 3
 
     AScope::FloatTimeSeries tsChan3;
-    _loadTs(nGates, _pulsesV, 3, tsChan3);
+    _loadTs(nGates, 1, _pulsesV, 3, tsChan3);
     emit newItem(tsChan3);
     
   }
@@ -441,8 +453,9 @@ void AScopeReader::_sendDataToAScope()
 // load up time series object
 
 void AScopeReader::_loadTs(int nGates,
+                           int channelIn,
                            const vector<IwrfTsPulse *> &pulses,
-                           int channel,
+                           int channelOut,
                            AScope::FloatTimeSeries &ts)
 
 {
@@ -452,7 +465,7 @@ void AScopeReader::_loadTs(int nGates,
   // set header
 
   ts.gates = nGates;
-  ts.chanId = channel;
+  ts.chanId = channelOut;
   ts.sampleRateHz = 1.0 / pulses[0]->get_prt();
   
   // set sequence number
@@ -474,10 +487,16 @@ void AScopeReader::_loadTs(int nGates,
     
     fl32 *iq = new fl32[nGates * 2];
     memset(iq, 0, nGates * 2 * sizeof(fl32));
-    if (channel == 0 || channel == 2) {
+    if (channelIn == 0) {
       memcpy(iq, pulse->getIq0(), nGatesPulse * 2 * sizeof(fl32));
-    } else if (pulse->getIq1() != NULL) {
-      memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
+    } else if (channelIn == 1) {
+      if (pulse->getIq1() != NULL) {
+        memcpy(iq, pulse->getIq1(), nGatesPulse * 2 * sizeof(fl32));
+      }
+    } else if (channelIn == 2) {
+      if (pulse->getIq2() != NULL) {
+        memcpy(iq, pulse->getIq2(), nGatesPulse * 2 * sizeof(fl32));
+      }
     }
     ts.IQbeams.push_back(iq);
     
