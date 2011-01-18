@@ -88,7 +88,7 @@ void AScopeReader::timerEvent(QTimerEvent *event)
     if (_readFromServer() == 0) {
       _sendDataToAScope();
     }
-    
+
   } // if (event->timerId() == _sockTimerId)
     
 }
@@ -108,7 +108,7 @@ int AScopeReader::_readFromServer()
   MemBuf buf;
   while (true) {
     
-    // read packet from time series server server
+    // read packet from time series server
     
     int packetId, packetLen;
     if (_readPacket(packetId, packetLen, buf)) {
@@ -122,10 +122,16 @@ int AScopeReader::_readFromServer()
     // handle packet types
 
     if (packetId == IWRF_PULSE_HEADER_ID) {
-    
+
       // add pulse to vector
 
       _addPulse(buf);
+
+    } else if (packetId == IWRF_BURST_HEADER_ID) {
+
+      // add pulse to vector
+      
+      _setBurst(buf);
 
     } else {
 
@@ -330,12 +336,25 @@ void AScopeReader::_addPulse(const MemBuf &buf)
 }
       
 ///////////////////////////////////////////////////////
+// set the burst
+
+void AScopeReader::_setBurst(const MemBuf &buf)
+
+{
+  
+  // set the data on the pulse, as floats
+  
+  _burst.setFromBuffer(buf.getPtr(), buf.getLen(), true);
+
+}
+      
+///////////////////////////////////////////////////////
 // send data to the AScope
 
 void AScopeReader::_sendDataToAScope()
 
 {
-  
+
   // compute max gates and channels
   
   int nGates = 0;

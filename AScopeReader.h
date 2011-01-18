@@ -10,6 +10,7 @@
 #include <radar/iwrf_data.h>
 #include <radar/IwrfTsInfo.hh>
 #include <radar/IwrfTsPulse.hh>
+#include <radar/IwrfTsBurst.hh>
 
 #include "AScope.h"
 
@@ -64,7 +65,7 @@ private:
   int _serverPort;
 
   AScope &_scope;
-
+  
   // communication via socket
 
   Socket _sock;
@@ -81,6 +82,7 @@ private:
   // info and pulses
 
   IwrfTsInfo _info;
+  IwrfTsBurst _burst;
   vector<IwrfTsPulse *> _pulsesH; // when H/V flag is 1
   vector<IwrfTsPulse *> _pulsesV; // when H/V flag is 0
 
@@ -103,6 +105,7 @@ private:
   int _readPacket(int &id, int &len, MemBuf &buf);
   int _peekAtBuffer(void *buf, int nbytes);
   void _addPulse(const MemBuf &buf);
+  void _setBurst(const MemBuf &buf);
   void _sendDataToAScope();
   void _loadTs(int nGates,
                int channelIn,
