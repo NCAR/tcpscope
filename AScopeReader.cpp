@@ -231,7 +231,7 @@ int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
   // read packet in
 
   buf.reserve(packetLen);
-  if (_sock.readBuffer(buf.getPtr(), packetLen)) {
+  if (_sock.readBuffer(buf.getPtr(), packetLen, 50)) {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
       _timedOut = true;
       return 0;
@@ -292,7 +292,7 @@ int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
   _timedOut = false;
 
   // peek with no wait
-  if (_sock.peek(buf, nbytes, 0) == 0) {
+  if (_sock.peek(buf, nbytes, 50) == 0) {
     return 0;
   } else {
     if (_sock.getErrNum() == Socket::TIMED_OUT) {
