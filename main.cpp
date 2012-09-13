@@ -38,17 +38,7 @@ void getConfigParams()
   QtConfig config("TcpScope", "TcpScope");
   
   _saveDir = config.getString("SaveDir", ".");
-  _title = config.getString("Title", "KAScope");
-  
-  // set up the default configuration directory path
-  string KaDir("/conf/");
-  char* e = getenv("KADIR");
-  if (e) {
-    KaDir = e + KaDir;
-  } else {
-    cerr << "Environment variable KADIR must be set." << endl;
-    exit(1);
-  }
+  _title = config.getString("Title", "TcpScope");
   
   _refreshHz    = config.getDouble("RefreshHz",  50.0);
   _serverHost = "localhost";
@@ -82,8 +72,8 @@ void parseOptions(int argc,
   try {
     po::store(po::parse_command_line(argc, argv, descripts), vm);
   }
-  catch(exception ex) {
-    cerr << "ERROR parsing command line" << endl;
+  catch(exception & ex) {
+    cerr << "ERROR parsing command line: " << ex.what() << endl;
     cerr << descripts << endl;
     exit(1);
   }
