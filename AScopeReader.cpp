@@ -28,7 +28,7 @@ AScopeReader::AScopeReader(const string &host,
 
   // pulse mode
 
-  _xmitMode = XMIT_MODE_H_ONLY;
+  _channelMode = CHANNEL_MODE_H_ONLY;
 
 }
 
@@ -147,11 +147,11 @@ int AScopeReader::_readFromServer()
 
       if (_pulsesV.size() == 0) {
         // H data only
-        _xmitMode = XMIT_MODE_H_ONLY;
+        _channelMode = CHANNEL_MODE_H_ONLY;
         return 0;
       } else if ((int) _pulsesV.size() >= _nSamples) {
         // Equal number H and V implies alternating data
-        _xmitMode = XMIT_MODE_ALTERNATING;
+        _channelMode = CHANNEL_MODE_ALTERNATING;
         return 0;
       }
 
@@ -159,11 +159,11 @@ int AScopeReader::_readFromServer()
       
       if (_pulsesH.size() == 0) {
         // V data only
-        _xmitMode = XMIT_MODE_V_ONLY;
+        _channelMode = CHANNEL_MODE_V_ONLY;
         return 0;
       } else if ((int) _pulsesH.size() >= _nSamples) {
         // Equal number H and V implies alternating data
-        _xmitMode = XMIT_MODE_ALTERNATING;
+        _channelMode = CHANNEL_MODE_ALTERNATING;
         return 0;
       }
 
@@ -384,7 +384,7 @@ void AScopeReader::_sendDataToAScope()
     }
   } // ii
 
-  if (_xmitMode == XMIT_MODE_H_ONLY) {
+  if (_channelMode == CHANNEL_MODE_H_ONLY) {
 
     // load H chan 0, send to scope
 
@@ -398,13 +398,13 @@ void AScopeReader::_sendDataToAScope()
     _loadTs(nGates, 1, _pulsesH, 1, tsChan1);
     emit newItem(tsChan1);
 
-    // load H burst, send to scope as chan 2
+    // load burst, send to scope as chan 2
 
     AScope::FloatTimeSeries tsChan2;
-    _loadTs(nGates, 2, _pulsesH, 2, tsChan2);
+    _loadBurst(_burst, 2, tsChan2);
     emit newItem(tsChan2);
 
-  } else if (_xmitMode == XMIT_MODE_V_ONLY) {
+  } else if (_channelMode == CHANNEL_MODE_V_ONLY) {
 
     // load V chan 0, send to scope
     
@@ -421,7 +421,7 @@ void AScopeReader::_sendDataToAScope()
     // load V burst, send to scope as chan 3
     
     AScope::FloatTimeSeries tsChan3;
-    _loadTs(nGates, 3, _pulsesV, 3, tsChan3);
+    _loadBurst(_burst, 3, tsChan3);
     emit newItem(tsChan3);
 
   } else {
@@ -520,6 +520,41 @@ void AScopeReader::_loadTs(int nGates,
     ts.IQbeams.push_back(iq);
     
   } // ii
+  
+}
+    
+///////////////////////////////////////////////
+// load up burst data
+
+void AScopeReader::_loadBurst(const IwrfTsBurst &burst,
+                              int channelOut,
+                              AScope::FloatTimeSeries &ts)
+
+{
+  
+  if (burst.getNSamples() < 2) return;
+
+  // set header
+
+  ts.gates = burst.getNSamples();
+  ts.chanId = channelOut;
+  ts.sampleRateHz = burst.getSamplingFreqHz();
+  
+  // set sequence number
+
+  size_t *seq0 = new size_t;
+  *seq0 = _tsSeqNum;
+  ts.handle = seq0;
+  if (_debugLevel > 1) {
+    cerr << "Creating burst data, seq num: " << _tsSeqNum << endl;
+  }
+  _tsSeqNum++;
+  
+  // load IQ data
+
+  fl32 *iq = new fl32[burst.getNSamples() * 2];
+  memcpy(iq, burst.getIq(), burst.getNSamples() * 2 * sizeof(fl32));
+  ts.IQbeams.push_back(iq);
   
 }
     

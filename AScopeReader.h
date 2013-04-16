@@ -89,11 +89,11 @@ private:
   // xmit mode
 
   typedef enum {
-    XMIT_MODE_H_ONLY,
-    XMIT_MODE_V_ONLY,
-    XMIT_MODE_ALTERNATING
-  } xmitMode_t;
-  xmitMode_t _xmitMode;
+    CHANNEL_MODE_H_ONLY,
+    CHANNEL_MODE_V_ONLY,
+    CHANNEL_MODE_ALTERNATING
+  } channelMode_t;
+  channelMode_t _channelMode;
 
   // sequence number for time series to ascope
 
@@ -112,7 +112,9 @@ private:
                const vector<IwrfTsPulse *> &pulses,
                int channelOut,
                AScope::FloatTimeSeries &ts);
-
+  void _loadBurst(const IwrfTsBurst &burst,
+                  int channelOut,
+                  AScope::FloatTimeSeries &ts);
 
 };
 
