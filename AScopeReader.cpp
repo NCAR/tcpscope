@@ -28,7 +28,7 @@ AScopeReader::AScopeReader(const string &host,
 
   // pulse mode
 
-  _channelMode = CHANNEL_MODE_H_ONLY;
+  _channelMode = CHANNEL_MODE_HV_SIM;
 
 }
 
@@ -143,11 +143,11 @@ int AScopeReader::_readFromServer()
 
     // check we have enough data
     
-    if ((int) _pulsesH.size() >= _nSamples) {
+    if ((int) _pulses.size() >= _nSamples) {
 
       if (_pulsesV.size() == 0) {
         // H data only
-        _channelMode = CHANNEL_MODE_H_ONLY;
+        _channelMode = CHANNEL_MODE_HV_SIM;
         return 0;
       } else if ((int) _pulsesV.size() >= _nSamples) {
         // Equal number H and V implies alternating data
@@ -157,11 +157,11 @@ int AScopeReader::_readFromServer()
 
     } else if ((int) _pulsesV.size() >= _nSamples) {
       
-      if (_pulsesH.size() == 0) {
+      if (_pulses.size() == 0) {
         // V data only
         _channelMode = CHANNEL_MODE_V_ONLY;
         return 0;
-      } else if ((int) _pulsesH.size() >= _nSamples) {
+      } else if ((int) _pulses.size() >= _nSamples) {
         // Equal number H and V implies alternating data
         _channelMode = CHANNEL_MODE_ALTERNATING;
         return 0;
@@ -328,7 +328,7 @@ void AScopeReader::_addPulse(const MemBuf &buf)
 
   int hvFlag = pulse->get_hv_flag();
   if (hvFlag) {
-    _pulsesH.push_back(pulse);
+    _pulses.push_back(pulse);
   } else {
     _pulsesV.push_back(pulse);
   }
@@ -360,8 +360,8 @@ void AScopeReader::_sendDataToAScope()
   int nGates = 0;
   int nChannels = 0;
   
-  for (size_t ii = 0; ii < _pulsesH.size(); ii++) {
-    const IwrfTsPulse *pulse = _pulsesH[ii];
+  for (size_t ii = 0; ii < _pulses.size(); ii++) {
+    const IwrfTsPulse *pulse = _pulses[ii];
     int nGatesPulse = pulse->getNGates();
     if (nGatesPulse > nGates) {
       nGates = nGatesPulse;
@@ -384,18 +384,18 @@ void AScopeReader::_sendDataToAScope()
     }
   } // ii
 
-  if (_channelMode == CHANNEL_MODE_H_ONLY) {
+  if (_channelMode == CHANNEL_MODE_HV_SIM) {
 
     // load H chan 0, send to scope
 
     AScope::FloatTimeSeries tsChan0;
-    _loadTs(nGates, 0, _pulsesH, 0, tsChan0);
+    _loadTs(nGates, 0, _pulses, 0, tsChan0);
     emit newItem(tsChan0);
 
     // load H chan 1, send to scope
 
     AScope::FloatTimeSeries tsChan1;
-    _loadTs(nGates, 1, _pulsesH, 1, tsChan1);
+    _loadTs(nGates, 1, _pulses, 1, tsChan1);
     emit newItem(tsChan1);
 
     // load burst, send to scope as chan 2
@@ -431,13 +431,13 @@ void AScopeReader::_sendDataToAScope()
     // load H chan 0, send to scope
 
     AScope::FloatTimeSeries tsChan0;
-    _loadTs(nGates, 0, _pulsesH, 0, tsChan0);
+    _loadTs(nGates, 0, _pulses, 0, tsChan0);
     emit newItem(tsChan0);
 
     // load H chan 1, send to scope
     
     AScope::FloatTimeSeries tsChan1;
-    _loadTs(nGates, 1, _pulsesH, 1, tsChan1);
+    _loadTs(nGates, 1, _pulses, 1, tsChan1);
     emit newItem(tsChan1);
 
     // load V chan 0, send to scope as chan 2
@@ -456,10 +456,10 @@ void AScopeReader::_sendDataToAScope()
 
   // free up the pulses
   
-  for (size_t ii = 0; ii < _pulsesH.size(); ii++) {
-    delete _pulsesH[ii];
+  for (size_t ii = 0; ii < _pulses.size(); ii++) {
+    delete _pulses[ii];
   }
-  _pulsesH.clear();
+  _pulses.clear();
 
   for (size_t ii = 0; ii < _pulsesV.size(); ii++) {
     delete _pulsesV[ii];
@@ -478,7 +478,7 @@ void AScopeReader::_loadTs(int nGates,
                            AScope::FloatTimeSeries &ts)
 
 {
-  
+
   if (pulses.size() < 2) return;
 
   // set header
@@ -501,8 +501,8 @@ void AScopeReader::_loadTs(int nGates,
 
   for (size_t ii = 0; ii < pulses.size(); ii++) {
     
-    const IwrfTsPulse *pulse = pulses[ii];
-    int nGatesPulse = pulses[ii]->getNGates();
+    const IwrfTsPulse* pulse = pulses[ii];
+    int nGatesPulse = pulse->getNGates();
     
     fl32 *iq = new fl32[nGates * 2];
     memset(iq, 0, nGates * 2 * sizeof(fl32));

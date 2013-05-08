@@ -83,13 +83,13 @@ private:
 
   IwrfTsInfo _info;
   IwrfTsBurst _burst;
-  vector<IwrfTsPulse *> _pulsesH; // when H/V flag is 1
+  vector<IwrfTsPulse *> _pulses; // SIM mode, or when H/V flag is 1
   vector<IwrfTsPulse *> _pulsesV; // when H/V flag is 0
 
   // xmit mode
 
   typedef enum {
-    CHANNEL_MODE_H_ONLY,
+    CHANNEL_MODE_HV_SIM,
     CHANNEL_MODE_V_ONLY,
     CHANNEL_MODE_ALTERNATING
   } channelMode_t;
