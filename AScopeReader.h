@@ -11,6 +11,7 @@
 #include <radar/IwrfTsInfo.hh>
 #include <radar/IwrfTsPulse.hh>
 #include <radar/IwrfTsBurst.hh>
+#include <radar/IwrfTsReader.hh>
 
 #include "AScope.h"
 
@@ -29,7 +30,9 @@ public:
   /// Constructor
   /// @param host The server host
   /// @param port The server port
+  /// @param fmqPath - set in FMQ mode
     AScopeReader(const std::string &host, int port,
+                 const std::string &fmqPath,
                  AScope &scope, int debugLevel);
 
   /// Destructor
@@ -63,26 +66,23 @@ private:
 
   std::string _serverHost;
   int _serverPort;
+  std::string _serverFmq;
 
   AScope &_scope;
   
-  // communication via socket
+  // read in data
 
-  Socket _sock;
-  time_t _lastTryConnectTime;
-  int _sockTimerId;
-  bool _timedOut;
-  
+  IwrfTsReader *_pulseReader;
+  bool _haveChan1;
+  int _dataTimerId;
+
   // pulse stats
 
   int _nSamples;
   int _pulseCount;
-  int _pulseCountSinceSync;
   
   // info and pulses
 
-  IwrfTsInfo _info;
-  IwrfTsBurst _burst;
   vector<IwrfTsPulse *> _pulses; // SIM mode, or when H/V flag is 1
   vector<IwrfTsPulse *> _pulsesV; // when H/V flag is 0
 
@@ -101,11 +101,8 @@ private:
 
   // methods
   
-  int _readFromServer();
-  int _readPacket(int &id, int &len, MemBuf &buf);
-  int _peekAtBuffer(void *buf, int nbytes);
-  void _addPulse(const MemBuf &buf);
-  void _setBurst(const MemBuf &buf);
+  int _readData();
+  IwrfTsPulse *_getNextPulse();
   void _sendDataToAScope();
   void _loadTs(int nGates,
                int channelIn,

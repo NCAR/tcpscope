@@ -22,6 +22,7 @@ using namespace std;
 double _refreshHz;       ///< The scope refresh rate in Hz
 string _serverHost; ///< The host name for the time series server
 int _serverPort;         ///< The port for the time series server
+string _serverFmq; ///< The FMQ name, if using fmq instead of tcp
 int _debugLevel;
 string _saveDir;            ///< The image save directory
 string _title;
@@ -43,6 +44,7 @@ void getConfigParams()
   _refreshHz    = config.getDouble("RefreshHz",  50.0);
   _serverHost = "localhost";
   _serverPort = 10000;
+  _serverFmq.clear();
   _debugLevel = 0;
 
 }
@@ -62,6 +64,7 @@ void parseOptions(int argc,
   descripts.add_options()
     ("help", "describe options")
     ("RefreshHz", po::value<double>(&_refreshHz), "Refresh rate (Hz)")
+    ("fmq", po::value<string>(&_serverFmq), "Set the FMQ path - if FMQ mode")
     ("host", po::value<string>(&_serverHost), "Set the server host")
     ("port", po::value<int>(&_serverPort), "Set the server port")
     ("debug", po::value<int>(&_debugLevel),
@@ -98,12 +101,16 @@ int
 
   if (_debugLevel) {
     cerr << "Running tcpscope" << endl;
-    cerr << "  server host: " << _serverHost << endl;
-    cerr << "  server port: " << _serverPort << endl;
+    if (_serverFmq.size() > 0) {
+      cerr << "  server fmq: " << _serverFmq << endl;
+    } else {
+      cerr << "  server host: " << _serverHost << endl;
+      cerr << "  server port: " << _serverPort << endl;
+    }
   }
 
   QApplication app(argc, argv);
-
+  
   // create the scope
 
   AScope scope(_refreshHz, _saveDir);
@@ -112,7 +119,8 @@ int
 
   // create the data source reader
   
-  AScopeReader reader(_serverHost, _serverPort, scope, _debugLevel);
+  AScopeReader reader(_serverHost, _serverPort, _serverFmq,
+                      scope, _debugLevel);
   
   // connect the reader to the scope to receive new time series data
   

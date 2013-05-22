@@ -7,15 +7,15 @@ using namespace std;
 
 AScopeReader::AScopeReader(const string &host,
                            int port,
+                           const string &fmqPath,
                            AScope &scope,
                            int debugLevel):
         _debugLevel(debugLevel),
         _serverHost(host),
         _serverPort(port),
+        _serverFmq(fmqPath),
         _scope(scope),
-        _lastTryConnectTime(0),
         _pulseCount(0),
-        _pulseCountSinceSync(0),
         _tsSeqNum(0)
 {
   
@@ -24,11 +24,20 @@ AScopeReader::AScopeReader(const string &host,
   qRegisterMetaType<AScope::TimeSeries>();
   
   // start timer for checking socket every 50 msecs
-  _sockTimerId = startTimer(50);
+  _dataTimerId = startTimer(50);
 
   // pulse mode
 
   _channelMode = CHANNEL_MODE_HV_SIM;
+
+  // pulse reader
+
+  if (_serverFmq.size() > 0) {
+    _pulseReader = new IwrfTsReaderFmq(_serverFmq.c_str());
+  } else {
+    _pulseReader = new IwrfTsReaderTcp(_serverHost.c_str(), _serverPort);
+  }
+  _haveChan1 = false;
 
 }
 
@@ -36,13 +45,8 @@ AScopeReader::~AScopeReader()
 
 {
 
-  // close socket if open
-
-  if (_sock.isOpen()) {
-    if (_debugLevel) {
-      cerr << "Closing socket to IWRF data server" << endl;
-    }
-    _sock.close();
+  if (_pulseReader) {
+    delete _pulseReader;
   }
 
 }
@@ -53,43 +57,19 @@ AScopeReader::~AScopeReader()
 void AScopeReader::timerEvent(QTimerEvent *event)
 {
 
-  if (event->timerId() == _sockTimerId) {
+  if (event->timerId() == _dataTimerId) {
 
     if (_debugLevel > 0) {
       cerr << "Servicing socket timer event" << endl;
     }
 
-    if (!_sock.isOpen()) {
-      // try opening, once per second
-      time_t now = time(NULL);
-      if (now == _lastTryConnectTime) {
-        return;
-      }
-      _lastTryConnectTime = now;
-      if (_sock.open(_serverHost.c_str(), _serverPort)) {
-        int errNum = errno;
-        cerr << "ERROR AScopeReader::timerEvent" << endl;
-        cerr << "  Cannot open socket to IWRF data server" << endl;
-        cerr << "  host: " << _serverHost << endl;
-        cerr << "  port: " << _serverPort << endl;
-        cerr << "  " << strerror(errNum) << endl;
-        return;
-      }
-      if (_debugLevel) {
-        cerr << "INFO - AScopeReader::timerEvent" << endl;
-        cerr << "Opened socket to IWRF data server" << endl;
-        cerr << "  host: " << _serverHost << endl;
-        cerr << "  port: " << _serverPort << endl;
-      }
-    }
-
     // read data from server, until enough data is gathered
 
-    if (_readFromServer() == 0) {
+    if (_readData() == 0) {
       _sendDataToAScope();
     }
 
-  } // if (event->timerId() == _sockTimerId)
+  } // if (event->timerId() == _dataTimerId)
     
 }
 
@@ -97,54 +77,35 @@ void AScopeReader::timerEvent(QTimerEvent *event)
 // read data from the server
 // returns 0 on succes, -1 on failure (not enough data)
 
-int AScopeReader::_readFromServer()
+int AScopeReader::_readData()
 
 {
 
   // read data until nSamples pulses have been gathered
   
   _nSamples = _scope.getBlockSize();
-
+  
   MemBuf buf;
   while (true) {
     
-    // read packet from time series server
+    // read in a pulse
     
-    int packetId, packetLen;
-    if (_readPacket(packetId, packetLen, buf)) {
-      cerr << "ERROR - AScopeReader::_readFromServer" << endl;
-      return -1;
-    }
-    if (_timedOut) {
-      return -1;
-    }
+    IwrfTsPulse *pulse = _getNextPulse();
+    _pulseCount++;
+
+    // add to vector based on H/V flag
     
-    // handle packet types
-
-    if (packetId == IWRF_PULSE_HEADER_ID) {
-
-      // add pulse to vector
-
-      _addPulse(buf);
-
-    } else if (packetId == IWRF_BURST_HEADER_ID) {
-
-      // add pulse to vector
-      
-      _setBurst(buf);
-
+    int hvFlag = pulse->get_hv_flag();
+    if (hvFlag) {
+      _pulses.push_back(pulse);
     } else {
-
-      // set the ops info appropriately
-
-      _info.setFromBuffer(buf.getPtr(), buf.getLen());
-
+      _pulsesV.push_back(pulse);
     }
 
     // check we have enough data
     
     if ((int) _pulses.size() >= _nSamples) {
-
+      
       if (_pulsesV.size() == 0) {
         // H data only
         _channelMode = CHANNEL_MODE_HV_SIM;
@@ -175,179 +136,44 @@ int AScopeReader::_readFromServer()
 
 }
 
-///////////////////////////////////////////////////////////////////
-// Read in next packet, set id and load buffer.
-// Returns 0 on success, -1 on failure
+///////////////////////////////////////////////////////
+// get next pulse
+//
+// returns NULL on failure
 
-int AScopeReader::_readPacket(int &id, int &len, MemBuf &buf)
+IwrfTsPulse *AScopeReader::_getNextPulse()
 
 {
-  bool haveGoodHeader = false;
-  si32 packetId;
-  si32 packetLen;
-  si32 packetTop[2];
-  _timedOut = false;
-
-  while (!haveGoodHeader) {
-
-    // peek at the first 8 bytes
-
-    if (_peekAtBuffer(packetTop, sizeof(packetTop))) {
-      cerr << "ERROR - AScopeReader::_readPacket" << endl;
-      _sock.close();
-      return -1;
-    }
-
-    if (_timedOut) {
-      return 0;
-    }
-    
-    // check ID for packet, and get its length
-    
-    packetId = packetTop[0];
-    packetLen = packetTop[1];
-
-    if (iwrf_check_packet_id(packetId, packetLen)) {
-
-      // out of order, so close and return error
-      // this will force a reconnection and resync
-
-      cerr << "ERROR - AScopeReader::_readPacket" << endl;
-      cerr << " Incoming data stream out of sync" << endl;
-      cerr << " Closing socket" << endl;
-      _sock.close();
-      return -1;
-
-    } else {
-
-      haveGoodHeader = true;
-      id = packetId;
-      len = packetLen;
-
-    }
-
-  } // while (!haveGoodHeader)
-    
-  // read packet in
-
-  buf.reserve(packetLen);
-  if (_sock.readBuffer(buf.getPtr(), packetLen, 50)) {
-    if (_sock.getErrNum() == Socket::TIMED_OUT) {
-      _timedOut = true;
-      return 0;
-    } else {
-      cerr << "ERROR - AScopeReader::_readPacket" << endl;
-      cerr << "  " << _sock.getErrStr() << endl;
-      _sock.close();
-      return -1;
-    }
-  }
   
-  if (id == IWRF_PULSE_HEADER_ID) {
-    _pulseCount++;
-    _pulseCountSinceSync++;
-  }
-    
-  if (_debugLevel > 2) {
-
-    iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
-
-  } else if (_debugLevel > 1) {
-
-    if (id == IWRF_PULSE_HEADER_ID) {
-      cerr << "Read in PULSE packet, id, len, count: " << ", "
-           << iwrf_packet_id_to_str(id) << ", "
-           << packetLen << ", "
-           << _pulseCount << endl;
-    } else {
-      cerr << "Read in TCP packet, id, len: "
-           << iwrf_packet_id_to_str(id) << ", "
-           << packetLen << endl;
-      if(id == IWRF_SYNC_ID) {
-        if(_pulseCount > 0) {
-          cerr << "N pulses since last sync: " << _pulseCountSinceSync << endl;
-          _pulseCountSinceSync = 0;  
-        }
-      } else {
-        iwrf_packet_print(stderr, buf.getPtr(), buf.getLen());
+  IwrfTsPulse *pulse = NULL;
+  
+  while (pulse == NULL) {
+    pulse = _pulseReader->getNextPulse(false);
+    if (pulse == NULL) {
+      if (_pulseReader->getTimedOut()) {
+	cout << "# NOTE: read timed out, retrying ..." << endl;
+	continue;
       }
-      
-    } // if (id == IWRF_PULSE_HEADER_ID)
-
-  } // if (_debugLevel > 2) 
-    
-  return 0;
-
-}
-
-///////////////////////////////////////////////////////////////////
-// Peek at buffer from socket
-// Returns 0 on success, -1 on failure
-// _timedOut set in case of timeout
-
-int AScopeReader::_peekAtBuffer(void *buf, int nbytes)
-
-{
-
-  _timedOut = false;
-
-  // peek with no wait
-  if (_sock.peek(buf, nbytes, 50) == 0) {
-    return 0;
-  } else {
-    if (_sock.getErrNum() == Socket::TIMED_OUT) {
-      // no data available
-      _timedOut = true;
-      return 0;
-    } else {
-      cerr << "ERROR - AScopeReader::_peekAtBuffer" << endl;
-      cerr << "  " << _sock.getErrStr() << endl;
+      if (_pulseReader->endOfFile()) {
+	cout << "# NOTE: end of file encountered" << endl;
+      }
+      return NULL;
     }
   }
 
-  return -1;
-
-}
-
-///////////////////////////////////////////////////////
-// add pulse to queue
-
-void AScopeReader::_addPulse(const MemBuf &buf)
-
-{
-  
-  // create a new pulse
-  
-  IwrfTsPulse *pulse = new IwrfTsPulse(_info);
-  
-  // set the data on the pulse, as floats
-
-  pulse->setFromBuffer(buf.getPtr(), buf.getLen(), true);
-
-  // add to vector based on H/V flag
-
-  int hvFlag = pulse->get_hv_flag();
-  if (hvFlag) {
-    _pulses.push_back(pulse);
+  if (_pulseReader->endOfFile()) {
+    cout << "# NOTE: end of file encountered" << endl;
+  }
+  if (pulse->getIq1() != NULL) {
+    _haveChan1 = true;
   } else {
-    _pulsesV.push_back(pulse);
+    _haveChan1 = false;
   }
 
-}
-      
-///////////////////////////////////////////////////////
-// set the burst
-
-void AScopeReader::_setBurst(const MemBuf &buf)
-
-{
-  
-  // set the data on the pulse, as floats
-  
-  _burst.setFromBuffer(buf.getPtr(), buf.getLen(), true);
+  return pulse;
 
 }
-      
+
 ///////////////////////////////////////////////////////
 // send data to the AScope
 
@@ -401,7 +227,7 @@ void AScopeReader::_sendDataToAScope()
     // load burst, send to scope as chan 2
 
     AScope::FloatTimeSeries tsChan2;
-    _loadBurst(_burst, 2, tsChan2);
+    _loadBurst(_pulseReader->getBurst(), 2, tsChan2);
     emit newItem(tsChan2);
 
   } else if (_channelMode == CHANNEL_MODE_V_ONLY) {
@@ -421,7 +247,7 @@ void AScopeReader::_sendDataToAScope()
     // load V burst, send to scope as chan 3
     
     AScope::FloatTimeSeries tsChan3;
-    _loadBurst(_burst, 3, tsChan3);
+    _loadBurst(_pulseReader->getBurst(), 3, tsChan3);
     emit newItem(tsChan3);
 
   } else {
