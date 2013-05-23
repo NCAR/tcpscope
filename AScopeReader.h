@@ -104,14 +104,14 @@ private:
   int _readData();
   IwrfTsPulse *_getNextPulse();
   void _sendDataToAScope();
-  void _loadTs(int nGates,
-               int channelIn,
-               const vector<IwrfTsPulse *> &pulses,
-               int channelOut,
-               AScope::FloatTimeSeries &ts);
-  void _loadBurst(const IwrfTsBurst &burst,
-                  int channelOut,
-                  AScope::FloatTimeSeries &ts);
+  int _loadTs(int nGates,
+              int channelIn,
+              const vector<IwrfTsPulse *> &pulses,
+              int channelOut,
+              AScope::FloatTimeSeries &ts);
+  int _loadBurst(const IwrfTsBurst &burst,
+                 int channelOut,
+                 AScope::FloatTimeSeries &ts);
 
 };
 
