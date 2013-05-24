@@ -63,6 +63,7 @@ void parseOptions(int argc,
   po::options_description descripts("Options");
   descripts.add_options()
     ("help", "describe options")
+    ("title", po::value<string>(&_title), "Set the title")
     ("RefreshHz", po::value<double>(&_refreshHz), "Refresh rate (Hz)")
     ("fmq", po::value<string>(&_serverFmq), "Set the FMQ path - if FMQ mode")
     ("host", po::value<string>(&_serverHost), "Set the server host")
@@ -100,7 +101,7 @@ int
   parseOptions(argc, argv);
 
   if (_debugLevel) {
-    cerr << "Running tcpscope" << endl;
+    cerr << "Running tcpscope, title: " << _title << endl;
     if (_serverFmq.size() > 0) {
       cerr << "  server fmq: " << _serverFmq << endl;
     } else {
