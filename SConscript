@@ -20,12 +20,9 @@ headers = Split("""
 AScopeReader.h
 """)
 
-html = env.Apidocs(sources + headers, DOXYFILE_FILE = "Doxyfile")
+html = env.Apidocs(sources + headers)
 
 tcpscope = env.Program('tcpscope', sources)
 
 #Default(tcpscope, html)
 Default(tcpscope)
-
-
-
