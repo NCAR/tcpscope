@@ -272,31 +272,31 @@ void AScopeReader::_sendDataToAScope()
 
     // alternating mode, 4 channels
 
-    // load H chan 0, send to scope
+    // load H chan 0, (h-co), into channel 0
 
     AScope::FloatTimeSeries tsChan0;
     if (_loadTs(nGates, 0, _pulses, 0, tsChan0) == 0) {
       emit newItem(tsChan0);
     }
 
-    // load H chan 1, send to scope
+    // load H chan 1, (v-cross), into channel 3
     
     AScope::FloatTimeSeries tsChan1;
-    if (_loadTs(nGates, 1, _pulses, 1, tsChan1) == 0) {
+    if (_loadTs(nGates, 1, _pulses, 3, tsChan1) == 0) {
       emit newItem(tsChan1);
     }
 
-    // load V chan 0, send to scope as chan 2
+    // load V chan 0, (v-co) into channel 1
 
     AScope::FloatTimeSeries tsChan2;
-    if (_loadTs(nGates, 0, _pulsesV, 2, tsChan2) == 0) {
+    if (_loadTs(nGates, 0, _pulsesV, 1, tsChan2) == 0) {
       emit newItem(tsChan2);
     }
 
-    // load V chan 1, send to scope as chan 3
+    // load V chan 1, (h_cross) into channel 2
 
     AScope::FloatTimeSeries tsChan3;
-    if (_loadTs(nGates, 1, _pulsesV, 3, tsChan3) == 0) {
+    if (_loadTs(nGates, 1, _pulsesV, 2, tsChan3) == 0) {
       emit newItem(tsChan3);
     }
     
