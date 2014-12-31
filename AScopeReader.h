@@ -33,6 +33,7 @@ public:
   /// @param fmqPath - set in FMQ mode
     AScopeReader(const std::string &host, int port,
                  const std::string &fmqPath,
+                 bool simulMode,
                  AScope &scope, int debugLevel);
 
   /// Destructor
@@ -67,6 +68,7 @@ private:
   std::string _serverHost;
   int _serverPort;
   std::string _serverFmq;
+  bool _simulMode;
 
   AScope &_scope;
   

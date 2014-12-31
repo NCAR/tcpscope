@@ -26,6 +26,7 @@ string _serverFmq; ///< The FMQ name, if using fmq instead of tcp
 int _debugLevel;
 string _saveDir;            ///< The image save directory
 string _title;
+bool _simulMode;
 
 namespace po = boost::program_options;
 
@@ -68,6 +69,7 @@ void parseOptions(int argc,
     ("fmq", po::value<string>(&_serverFmq), "Set the FMQ path - if FMQ mode")
     ("host", po::value<string>(&_serverHost), "Set the server host")
     ("port", po::value<int>(&_serverPort), "Set the server port")
+    ("simul", "use simultanous mode")
     ("debug", po::value<int>(&_debugLevel),
      "Set the debug level: 0, 1, or 2. 0 is the default")
     ;
@@ -86,6 +88,11 @@ void parseOptions(int argc,
   if (vm.count("help")) {
     cout << descripts << endl;
     exit(1);
+  }
+
+  _simulMode = false;
+  if (vm.count("simul")) {
+    _simulMode = true;
   }
 
 }
@@ -121,7 +128,7 @@ int
   // create the data source reader
   
   AScopeReader reader(_serverHost, _serverPort, _serverFmq,
-                      scope, _debugLevel);
+                      _simulMode, scope, _debugLevel);
   
   // connect the reader to the scope to receive new time series data
   

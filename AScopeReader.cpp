@@ -9,12 +9,14 @@ using namespace std;
 AScopeReader::AScopeReader(const string &host,
                            int port,
                            const string &fmqPath,
+                           bool simulMode,
                            AScope &scope,
                            int debugLevel):
         _debugLevel(debugLevel),
         _serverHost(host),
         _serverPort(port),
         _serverFmq(fmqPath),
+        _simulMode(simulMode),
         _scope(scope),
         _pulseCount(0),
         _tsSeqNum(0)
@@ -107,11 +109,15 @@ int AScopeReader::_readData()
 
     // add to vector based on H/V flag
     
-    int hvFlag = pulse->get_hv_flag();
-    if (hvFlag) {
+    if (_simulMode) {
       _pulses.push_back(pulse);
     } else {
-      _pulsesV.push_back(pulse);
+      int hvFlag = pulse->get_hv_flag();
+      if (hvFlag) {
+        _pulses.push_back(pulse);
+      } else {
+        _pulsesV.push_back(pulse);
+      }
     }
 
     // check we have enough data
