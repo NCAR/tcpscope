@@ -4,14 +4,12 @@ tools = Split("""
 qt4
 ascope
 qtt_qtconfig
+rapradar
 doxygen
 boost_program_options
 """)
 
 env = Environment(tools = ['default'] + tools)
-
-env.Append(LIBS = ['radar', 'rapmath', 'rapformats', 'Radx', 'Fmq', 
-                   'dsserver', 'didss', 'toolsa', 'dataport', 'Spdb'])
 
 sources = Split("""
 main.cpp
