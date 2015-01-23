@@ -4,9 +4,9 @@ tools = Split("""
 qt4
 ascope
 qtt_qtconfig
-rapradar
 doxygen
 boost_program_options
+lrose
 """)
 
 env = Environment(tools = ['default'] + tools)
