@@ -103,21 +103,29 @@ int AScopeReader::_readData()
       cerr << "WARNING - pulse has NULL data" << endl;
       continue;
     }
-    if (pulse->getIq1() == NULL) {
-      continue;
-    }
 
-    // add to vector based on H/V flag
-    
-    if (_simulMode) {
+    if (pulse->getIq1() == NULL) {
+      
+      // single pol mode
+      
       _pulses.push_back(pulse);
+      _channelMode = CHANNEL_MODE_HV_SIM;
+      
     } else {
-      int hvFlag = pulse->get_hv_flag();
-      if (hvFlag) {
+      
+      // add to vector based on H/V flag
+      
+      if (_simulMode) {
         _pulses.push_back(pulse);
       } else {
-        _pulsesV.push_back(pulse);
+        int hvFlag = pulse->get_hv_flag();
+        if (hvFlag) {
+          _pulses.push_back(pulse);
+        } else {
+          _pulsesV.push_back(pulse);
+        }
       }
+
     }
 
     // check we have enough data
