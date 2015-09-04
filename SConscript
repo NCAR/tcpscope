@@ -7,6 +7,7 @@ qtt_qtconfig
 rapradar
 doxygen
 boost_program_options
+rapradar
 """)
 
 env = Environment(tools = ['default'] + tools)
