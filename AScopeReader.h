@@ -34,7 +34,9 @@ public:
     AScopeReader(const std::string &host, int port,
                  const std::string &fmqPath,
                  bool simulMode,
-                 AScope &scope, int debugLevel);
+                 AScope &scope, 
+                 int radarId,
+                 int debugLevel);
 
   /// Destructor
   virtual ~AScopeReader();
@@ -63,6 +65,7 @@ protected:
 
 private:
 
+  int _radarId;
   int _debugLevel;
 
   std::string _serverHost;

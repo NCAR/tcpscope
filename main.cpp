@@ -27,6 +27,7 @@ int _debugLevel;
 string _saveDir;            ///< The image save directory
 string _title;
 bool _simulMode;
+int _radarId;
 
 namespace po = boost::program_options;
 
@@ -47,6 +48,7 @@ void getConfigParams()
   _serverPort = 10000;
   _serverFmq.clear();
   _debugLevel = 0;
+  _radarId = 0;
 
 }
 
@@ -70,6 +72,8 @@ void parseOptions(int argc,
     ("host", po::value<string>(&_serverHost), "Set the server host")
     ("port", po::value<int>(&_serverPort), "Set the server port")
     ("simul", "use simultanous mode")
+    ("radarId", po::value<int>(&_radarId),
+     "Set radarId if data contains multiple IDs, 0 uses all data")
     ("debug", po::value<int>(&_debugLevel),
      "Set the debug level: 0, 1, or 2. 0 is the default")
     ;
@@ -128,7 +132,7 @@ int
   // create the data source reader
   
   AScopeReader reader(_serverHost, _serverPort, _serverFmq,
-                      _simulMode, scope, _debugLevel);
+                      _simulMode, scope, _radarId, _debugLevel);
   
   // connect the reader to the scope to receive new time series data
   

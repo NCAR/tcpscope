@@ -11,7 +11,9 @@ AScopeReader::AScopeReader(const string &host,
                            const string &fmqPath,
                            bool simulMode,
                            AScope &scope,
+                           int radarId,
                            int debugLevel):
+        _radarId(radarId),
         _debugLevel(debugLevel),
         _serverHost(host),
         _serverPort(port),
@@ -39,6 +41,9 @@ AScopeReader::AScopeReader(const string &host,
     _pulseReader = new IwrfTsReaderFmq(_serverFmq.c_str());
   } else {
     _pulseReader = new IwrfTsReaderTcp(_serverHost.c_str(), _serverPort);
+  }
+  if (_radarId != 0) {
+    _pulseReader->setRadarId(_radarId);
   }
   _haveChan1 = false;
 
