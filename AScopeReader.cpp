@@ -35,8 +35,10 @@ AScopeReader::AScopeReader(const string &host,
                            bool simulMode,
                            AScope &scope,
                            int radarId,
+                           int burstChan,
                            int debugLevel):
         _radarId(radarId),
+        _burstChan(burstChan),
         _debugLevel(debugLevel),
         _serverHost(host),
         _serverPort(port),
@@ -313,33 +315,63 @@ void AScopeReader::_sendDataToAScope()
   } else {
 
     // alternating mode, 4 channels
+    // if burst chan is set (>= 0) use specified channel instead of
+    // the default channels
 
     // load H chan 0, (h-co), into channel 0
 
-    AScope::FloatTimeSeries tsChan0;
-    if (_loadTs(nGates, 0, _pulses, 0, tsChan0) == 0) {
-      emit newItem(tsChan0);
+    if (_burstChan == 0) {
+      AScope::FloatTimeSeries tsChan0;
+      if (_loadBurst(_pulseReader->getBurst(), 0, tsChan0) == 0) {
+        emit newItem(tsChan0);
+      }
+    } else {
+      AScope::FloatTimeSeries tsChan0;
+      if (_loadTs(nGates, 0, _pulses, 0, tsChan0) == 0) {
+        emit newItem(tsChan0);
+      }
     }
 
     // load H chan 1, (v-cross), into channel 3
     
-    AScope::FloatTimeSeries tsChan1;
-    if (_loadTs(nGates, 1, _pulses, 3, tsChan1) == 0) {
-      emit newItem(tsChan1);
+    if (_burstChan == 3) {
+      AScope::FloatTimeSeries tsChan3;
+      if (_loadBurst(_pulseReader->getBurst(), 3, tsChan3) == 0) {
+        emit newItem(tsChan3);
+      }
+    } else {
+      AScope::FloatTimeSeries tsChan3;
+      if (_loadTs(nGates, 1, _pulses, 3, tsChan3) == 0) {
+        emit newItem(tsChan3);
+      }
     }
 
     // load V chan 0, (v-co) into channel 1
-
-    AScope::FloatTimeSeries tsChan2;
-    if (_loadTs(nGates, 0, _pulsesV, 1, tsChan2) == 0) {
-      emit newItem(tsChan2);
+    
+    if (_burstChan == 1) {
+      AScope::FloatTimeSeries tsChan1;
+      if (_loadBurst(_pulseReader->getBurst(), 1, tsChan1) == 0) {
+        emit newItem(tsChan1);
+      }
+    } else {
+      AScope::FloatTimeSeries tsChan1;
+      if (_loadTs(nGates, 0, _pulsesV, 1, tsChan1) == 0) {
+        emit newItem(tsChan1);
+      }
     }
 
     // load V chan 1, (h_cross) into channel 2
 
-    AScope::FloatTimeSeries tsChan3;
-    if (_loadTs(nGates, 1, _pulsesV, 2, tsChan3) == 0) {
-      emit newItem(tsChan3);
+    if (_burstChan == 2) {
+      AScope::FloatTimeSeries tsChan2;
+      if (_loadBurst(_pulseReader->getBurst(), 2, tsChan2) == 0) {
+        emit newItem(tsChan2);
+      }
+    } else {
+      AScope::FloatTimeSeries tsChan2;
+      if (_loadTs(nGates, 1, _pulsesV, 2, tsChan2) == 0) {
+        emit newItem(tsChan2);
+      }
     }
     
   }

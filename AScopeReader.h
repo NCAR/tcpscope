@@ -59,6 +59,7 @@ public:
                  bool simulMode,
                  AScope &scope, 
                  int radarId,
+                 int burstChan,
                  int debugLevel);
 
   /// Destructor
@@ -89,6 +90,7 @@ protected:
 private:
 
   int _radarId;
+  int _burstChan;
   int _debugLevel;
 
   std::string _serverHost;
