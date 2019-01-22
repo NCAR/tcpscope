@@ -10,6 +10,7 @@ boost_program_options
 """)
 
 env = Environment(tools = ['default'] + tools)
+env.EnableQtModules(['QtCore'])
 
 sources = Split("""
 main.cpp
@@ -24,5 +25,4 @@ html = env.Apidocs(sources + headers)
 
 tcpscope = env.Program('tcpscope', sources)
 
-#Default(tcpscope, html)
 Default(tcpscope)
