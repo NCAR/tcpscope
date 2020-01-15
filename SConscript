@@ -1,7 +1,8 @@
 # -*- python -*-
 
 tools = Split("""
-qt4
+qt5
+qtcore
 ascope
 qtt_qtconfig
 lrose
