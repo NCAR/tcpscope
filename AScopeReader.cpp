@@ -71,6 +71,7 @@ AScopeReader::AScopeReader(const string &host,
     _pulseReader->setRadarId(_radarId);
   }
   _haveChan1 = false;
+  _pulseReader->setNonBlocking(50);
 
 }
 
@@ -125,8 +126,8 @@ int AScopeReader::_readData()
     
     IwrfTsPulse *pulse = _getNextPulse();
     if (pulse == NULL) {
-      uusleep(10000);
-      continue;
+      // No data yet; return to event loop
+      return -1;
     }
     _pulseCount++;
     if (pulse->getIq0() == NULL) {
@@ -207,8 +208,8 @@ IwrfTsPulse *AScopeReader::_getNextPulse()
     pulse = _pulseReader->getNextPulse(true);
     if (pulse == NULL) {
       if (_pulseReader->getTimedOut()) {
-	cout << "# NOTE: read timed out, retrying ..." << endl;
-	continue;
+	// No data yet; return to event loop
+	return NULL;
       }
       if (_pulseReader->endOfFile()) {
 	cout << "# NOTE: end of file encountered" << endl;
